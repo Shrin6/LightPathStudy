@@ -6,7 +6,7 @@ import { LogOut, Menu, Home } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 
 interface TopBarProps {
-  session: Session;
+  session: Session | null;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
 }
@@ -47,13 +47,17 @@ export const TopBar = ({ session, sidebarOpen, setSidebarOpen }: TopBarProps) =>
           <Home className="h-4 w-4 mr-2" />
           Home
         </Button>
-        <div className="text-sm text-muted-foreground hidden sm:block">
-          {session.user.email}
-        </div>
-        <Button variant="outline" size="sm" onClick={handleSignOut}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
-        </Button>
+        {session?.user?.email && (
+          <div className="text-sm text-muted-foreground hidden sm:block">
+            {session.user.email}
+          </div>
+        )}
+        {session && (
+          <Button variant="outline" size="sm" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        )}
       </div>
     </header>
   );
