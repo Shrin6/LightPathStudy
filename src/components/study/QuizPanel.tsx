@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { DocumentTypeHint } from "@/pages/Study";
 
+const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
+
 interface QuizPanelProps {
   collectionId: string | null;
   collectionContent: string;
@@ -52,7 +54,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-tutor`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-tutor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

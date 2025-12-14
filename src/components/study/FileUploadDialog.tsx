@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, FileText, Loader2 } from "lucide-react";
 
+const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
+
 interface Collection {
   id: string;
   name: string;
@@ -213,6 +215,13 @@ export const FileUploadDialog = ({
           .from("study-files")
           .upload(filePath, file);
 
+        console.log('[FileUploadDialog] Storage upload result:', {
+          bucket: 'study-files',
+          path: filePath,
+          success: !uploadError,
+          error: uploadError?.message || null
+        });
+
         if (uploadError) throw uploadError;
 
         // Save to database
@@ -243,7 +252,7 @@ export const FileUploadDialog = ({
 
         // Trigger parsing with authentication
         const parseResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-document`,
+          `${SUPABASE_URL}/functions/v1/parse-document`,
           {
             method: "POST",
             headers: {
@@ -253,6 +262,12 @@ export const FileUploadDialog = ({
             body: JSON.stringify({ fileId: fileRecord.id }),
           }
         );
+
+        console.log('[FileUploadDialog] Parse response:', {
+          status: parseResponse.status,
+          ok: parseResponse.ok,
+          fileId: fileRecord.id
+        });
 
         if (!parseResponse.ok) {
           const errorText = await parseResponse.text();

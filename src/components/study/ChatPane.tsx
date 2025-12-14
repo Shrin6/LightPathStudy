@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Send, Loader2 } from "lucide-react";
 import { StudyMode, DocumentTypeHint } from "@/pages/Study";
 
+const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -140,7 +142,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
     setIsTyping(true);
 
     try {
-      const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-tutor`;
+      const CHAT_URL = `${SUPABASE_URL}/functions/v1/chat-tutor`;
 
       const response = await fetch(CHAT_URL, {
         method: "POST",

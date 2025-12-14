@@ -1,1 +1,10 @@
-project_id = "kkwhoovjokwctyxwwfuu"
+project_id = "dsvpodsvrxwgfqnuojcz"
+
+[functions.parse-document]
+verify_jwt = true
+
+[functions.chat-tutor]
+verify_jwt = true
+
+[functions.manage-collections]
+verify_jwt = true
