@@ -13,6 +13,9 @@ import { Session } from "@supabase/supabase-js";
 export type StudyMode = "explain" | "quiz" | "flashcards" | "worksheet" | "memory" | "notes";
 export type DocumentTypeHint = "NOTES_OR_STUDY_GUIDE" | "QUIZ_OR_TEST" | "WORKSHEET_OR_PROBLEM_SET" | "SLIDES_OR_IMAGES" | "MIXED_OR_UNSURE";
 
+// DEV_MODE: Set to true to bypass auth for testing
+const DEV_MODE = true;
+
 const Study = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
@@ -26,7 +29,7 @@ const Study = () => {
   useEffect(() => {
     // Check authentication
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
+      if (!session && !DEV_MODE) {
         navigate("/auth");
       } else {
         setSession(session);
@@ -35,7 +38,7 @@ const Study = () => {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
+      if (!session && !DEV_MODE) {
         navigate("/auth");
       } else {
         setSession(session);
@@ -79,7 +82,7 @@ const Study = () => {
     );
   }
 
-  if (!session) {
+  if (!session && !DEV_MODE) {
     return null;
   }
 

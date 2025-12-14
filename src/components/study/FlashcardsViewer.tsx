@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { validateCollectionContent, filterMeaningfulCards } from "@/lib/relevanceCheck";
 import { DocumentTypeHint } from "@/pages/Study";
 
+const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
+
 interface FlashcardsViewerProps {
   collectionId: string | null;
   collectionContent: string;
@@ -86,7 +88,7 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-tutor`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-tutor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

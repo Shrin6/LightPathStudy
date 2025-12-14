@@ -443,20 +443,34 @@ serve(async (req) => {
     console.log('File data:', fileData);
 
     // PRE-FLIGHT: Check if file exists in storage
+    console.log('[parse-document] Attempting storage download:', {
+      bucket: 'study-files',
+      path: fileData.file_path
+    });
+
     const { data: fileBlob, error: downloadError } = await supabaseClient
       .storage
       .from('study-files')
       .download(fileData.file_path);
 
     if (downloadError) {
-      console.error('Error downloading file:', downloadError);
+      console.error('[parse-document] Download FAILED:', {
+        bucket: 'study-files',
+        path: fileData.file_path,
+        errorCode: downloadError.message,
+        errorMessage: downloadError.message
+      });
       return new Response(
         JSON.stringify({ error: `Storage error: ${downloadError.message}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('File downloaded successfully');
+    console.log('[parse-document] Download SUCCESS:', {
+      bucket: 'study-files',
+      path: fileData.file_path,
+      blobSize: fileBlob?.size || 'unknown'
+    });
 
     // =====================================================
     // DEV MODE: Generate mock data without calling AI APIs

@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DocumentTypeHint } from "@/pages/Study";
 
+const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
+
 interface NotesViewerProps {
   collectionId: string | null;
   collectionContent: string;
@@ -47,7 +49,7 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint 
 
       // Trigger OCR parsing
       const { data: session } = await supabase.auth.getSession();
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-document`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/parse-document`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +96,7 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint 
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-tutor`, {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-tutor`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
