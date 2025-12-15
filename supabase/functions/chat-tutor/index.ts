@@ -538,17 +538,23 @@ serve(async (req) => {
     console.log('chat-tutor: final collectionContext length:', collectionContext.length);
     console.log('chat-tutor: collectionContext preview:', collectionContext.substring(0, 200));
 
-    // Final validation - check if content looks readable (not binary garbage)
-    const isReadable = /[a-zA-Z]{3,}/.test(collectionContext.substring(0, 500));
-    if (!collectionContext || collectionContext.trim().length < 100 || !isReadable) {
+    // Final validation - allow short context (best-effort) but still block truly empty/unreadable content
+    const trimmedContext = collectionContext.trim();
+    const isReadable = /[a-zA-Z]{3,}/.test(trimmedContext.substring(0, 500));
+
+    if (!trimmedContext || trimmedContext.length < 30 || !isReadable) {
       console.error('chat-tutor: collectionContext is empty or unreadable');
       return new Response(
         JSON.stringify({ 
-          error: 'This collection does not have enough readable text yet. The PDF may need to be re-uploaded or contains only images. Try re-parsing the document.',
+          error: 'This collection does not have enough readable text yet. Please upload or re-parse your study materials.',
           needsReparse: true
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    if (trimmedContext.length < 300) {
+      console.log(`[${contextSource}] Context is short (<300 chars) — proceeding best-effort`);
     }
 
     const docTypeHint = document_type_hint || 'MIXED_OR_UNSURE';
