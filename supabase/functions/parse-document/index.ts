@@ -16,7 +16,7 @@ const corsHeaders = {
 
 // PRE-FLIGHT: Validate environment variables
 function validateEnvironment(): { valid: boolean; error?: string } {
-  const requiredVars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
+  const requiredVars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LOVABLE_API_KEY"];
   for (const varName of requiredVars) {
     if (!Deno.env.get(varName)) {
       return { valid: false, error: `Missing required environment variable: ${varName}` };
@@ -112,6 +112,18 @@ function chunkText(text: string): string[] {
 // EMBEDDING GENERATION - REQUIRED, NOT OPTIONAL
 // Must return valid numeric array or throw error
 // =====================================================
+class EmbeddingGatewayError extends Error {
+  status: number;
+  responseText?: string;
+
+  constructor(status: number, message: string, responseText?: string) {
+    super(message);
+    this.name = "EmbeddingGatewayError";
+    this.status = status;
+    this.responseText = responseText;
+  }
+}
+
 async function generateEmbedding(text: string): Promise<number[]> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
@@ -125,12 +137,17 @@ async function generateEmbedding(text: string): Promise<number[]> {
     body: JSON.stringify({
       model: "text-embedding-3-small",
       input: text,
+      encoding_format: "float",
     }),
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Embedding generation failed: ${response.status} - ${errorText}`);
+    const errorText = await response.text().catch(() => "");
+    throw new EmbeddingGatewayError(
+      response.status,
+      `Embedding generation failed: ${response.status}`,
+      errorText,
+    );
   }
 
   const data = await response.json();
@@ -731,6 +748,8 @@ serve(async (req) => {
 
     let embeddingSuccessCount = 0;
     let embeddingFailCount = 0;
+    const embeddingFailureSamples: string[] = [];
+    const embeddingFailureStatuses = new Set<number>();
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
@@ -758,7 +777,24 @@ serve(async (req) => {
       } catch (embErr) {
         // Embedding failed - DO NOT INSERT THIS CHUNK
         embeddingFailCount++;
-        console.error(`EMBEDDING FAILED for chunk ${i}:`, embErr instanceof Error ? embErr.message : embErr);
+
+        let status: number | undefined;
+        let message = embErr instanceof Error ? embErr.message : String(embErr);
+
+        if (embErr instanceof EmbeddingGatewayError) {
+          status = embErr.status;
+          if (embErr.responseText) {
+            message = `${message} - ${embErr.responseText}`;
+          }
+        }
+
+        if (typeof status === "number") embeddingFailureStatuses.add(status);
+
+        console.error(`EMBEDDING FAILED for chunk ${i}:`, { status, message });
+
+        if (embeddingFailureSamples.length < 3) {
+          embeddingFailureSamples.push(`[${status ?? "unknown"}] ${message}`);
+        }
         // Skip this chunk entirely - do not insert without embedding
       }
     }
@@ -767,12 +803,20 @@ serve(async (req) => {
     console.log(`Chunks created: ${chunks.length}`);
     console.log(`Embeddings generated: ${embeddingSuccessCount}`);
     console.log(`Embeddings failed: ${embeddingFailCount}`);
+    console.log("Embedding failure statuses:", Array.from(embeddingFailureStatuses));
 
     // CRITICAL: If ALL embeddings failed, abort and return error
     if (chunks.length > 0 && embeddingSuccessCount === 0) {
       console.error("ALL EMBEDDINGS FAILED - Aborting to prevent data corruption");
 
       await supabaseClient.from("uploaded_files").update({ processing: false }).eq("id", fileId);
+
+      // Prefer surfacing payment/rate limit issues explicitly
+      const status = embeddingFailureStatuses.has(402)
+        ? 402
+        : embeddingFailureStatuses.has(429)
+          ? 429
+          : 500;
 
       return new Response(
         JSON.stringify({
@@ -781,8 +825,9 @@ serve(async (req) => {
           embeddingsGenerated: 0,
           chunksInserted: 0,
           abortReason: "ALL_EMBEDDINGS_FAILED",
+          embeddingFailureSamples,
         }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
