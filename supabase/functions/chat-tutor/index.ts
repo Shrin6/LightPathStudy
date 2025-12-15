@@ -390,32 +390,14 @@ serve(async (req) => {
     }
 
     // =====================================================
-    // SAFETY GUARD: Check for NULL embeddings before semantic search
-    // If any chunks have NULL embeddings, indexing is incomplete
+    // CONTEXT RETRIEVAL WITH GRACEFUL FALLBACKS
+    // Priority: VECTOR_CONTEXT > CHUNKS_FALLBACK > PARSED_CONTENT_FALLBACK
     // =====================================================
-    const { data: nullEmbeddingCheck, error: nullCheckError } = await supabaseClient
-      .from('document_chunks')
-      .select('id')
-      .eq('collection_id', collectionId)
-      .is('embedding', null)
-      .limit(1);
     
-    if (nullCheckError) {
-      console.error('Error checking for null embeddings:', nullCheckError);
-    }
-    
-    if (nullEmbeddingCheck && nullEmbeddingCheck.length > 0) {
-      console.warn('SAFETY GUARD: Found chunks with NULL embeddings - indexing incomplete');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Document indexing is still in progress. Please wait a moment and try again.',
-          indexingIncomplete: true
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    let collectionContext = '';
+    let contextSource = 'NONE';
 
-    // Generate query embedding for semantic search
+    // ATTEMPT 1: Vector semantic search (if embedding generation works)
     const queryText = messages[messages.length - 1]?.content || mode;
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
     
@@ -435,41 +417,80 @@ serve(async (req) => {
       
       if (embeddingResponse.ok) {
         const embeddingData = await embeddingResponse.json();
-        queryEmbedding = embeddingData.data[0].embedding;
+        queryEmbedding = embeddingData.data?.[0]?.embedding || [];
+        if (queryEmbedding.length > 0) {
+          console.log('Query embedding generated successfully, dimensions:', queryEmbedding.length);
+        }
+      } else {
+        const errText = await embeddingResponse.text().catch(() => '');
+        console.warn('Query embedding failed:', embeddingResponse.status, errText.substring(0, 200));
       }
     } catch (embErr) {
-      console.error('Embedding generation failed:', embErr);
+      console.warn('Query embedding generation error:', embErr instanceof Error ? embErr.message : embErr);
     }
 
-    // Fetch relevant chunks using vector similarity search
-    let collectionContext = '';
-    
+    // Try vector search if we have an embedding
     if (queryEmbedding.length > 0) {
-      const { data: chunksData, error: chunksError } = await supabaseClient.rpc(
-        'match_document_chunks',
-        {
-          query_embedding: JSON.stringify(queryEmbedding),
-          match_collection_id: collectionId,
-          match_count: 10
-        }
-      );
+      try {
+        const { data: chunksData, error: chunksError } = await supabaseClient.rpc(
+          'match_document_chunks',
+          {
+            query_embedding: JSON.stringify(queryEmbedding),
+            match_collection_id: collectionId,
+            match_count: 10
+          }
+        );
 
-      if (chunksError) {
-        console.error('Semantic search error:', chunksError);
-      } else if (chunksData && chunksData.length > 0) {
-        // Validate similarity values are not null
-        const validChunks = chunksData.filter((c: any) => c.similarity !== null && typeof c.similarity === 'number');
-        if (validChunks.length !== chunksData.length) {
-          console.warn(`Warning: ${chunksData.length - validChunks.length} chunks had null similarity values`);
+        if (chunksError) {
+          console.warn('Semantic search RPC error:', chunksError.message);
+        } else if (chunksData && chunksData.length > 0) {
+          // Filter chunks with valid similarity scores
+          const validChunks = chunksData.filter((c: any) => 
+            c.similarity !== null && typeof c.similarity === 'number' && c.chunk_text
+          );
+          
+          if (validChunks.length > 0) {
+            collectionContext = validChunks.map((c: any) => c.chunk_text).join('\n\n');
+            contextSource = 'VECTOR_CONTEXT';
+            console.log(`[${contextSource}] Retrieved ${validChunks.length} chunks via semantic search`);
+          } else {
+            console.warn('Vector search returned chunks but all had null similarity');
+          }
         }
-        collectionContext = validChunks.map((c: any) => c.chunk_text).join('\n\n');
-        console.log(`Retrieved ${validChunks.length} relevant chunks for context (similarity validated)`);
+      } catch (rpcErr) {
+        console.warn('Vector search exception:', rpcErr instanceof Error ? rpcErr.message : rpcErr);
       }
     }
-    
-    // Fallback: if no chunks found or too short, use parsed_content
+
+    // ATTEMPT 2: Direct chunk retrieval fallback (no embeddings needed)
     if (!collectionContext || collectionContext.length < 300) {
-      console.log('chat-tutor: chunks insufficient, falling back to parsed_content');
+      console.log('Trying CHUNKS_FALLBACK...');
+      
+      const { data: directChunks, error: directChunksError } = await supabaseClient
+        .from('document_chunks')
+        .select('chunk_text, chunk_index')
+        .eq('collection_id', collectionId)
+        .order('chunk_index', { ascending: true })
+        .limit(15);
+
+      if (directChunksError) {
+        console.warn('Direct chunks query error:', directChunksError.message);
+      } else if (directChunks && directChunks.length > 0) {
+        const chunkTexts = directChunks
+          .filter((c: any) => c.chunk_text && c.chunk_text.length > 0)
+          .map((c: any) => c.chunk_text);
+        
+        if (chunkTexts.length > 0) {
+          collectionContext = chunkTexts.join('\n\n');
+          contextSource = 'CHUNKS_FALLBACK';
+          console.log(`[${contextSource}] Retrieved ${chunkTexts.length} chunks directly`);
+        }
+      }
+    }
+
+    // ATTEMPT 3: Parsed content fallback (last resort)
+    if (!collectionContext || collectionContext.length < 300) {
+      console.log('Trying PARSED_CONTENT_FALLBACK...');
       
       const { data: files, error: filesError } = await supabaseClient
         .from('uploaded_files')
@@ -485,7 +506,6 @@ serve(async (req) => {
         );
       }
 
-      // PRE-FLIGHT: Validate collection has content
       if (!files || files.length === 0) {
         return new Response(
           JSON.stringify({ 
@@ -496,8 +516,11 @@ serve(async (req) => {
         );
       }
 
-      const hasContent = files.some(f => f.parsed_content && f.parsed_content.trim().length > 0);
-      if (!hasContent) {
+      const contentParts = files
+        .filter((f: any) => f.parsed_content && f.parsed_content.trim().length > 0)
+        .map((f: any) => f.parsed_content);
+
+      if (contentParts.length === 0) {
         return new Response(
           JSON.stringify({ 
             error: 'Files are still being processed. Please wait a moment and try again.',
@@ -507,11 +530,9 @@ serve(async (req) => {
         );
       }
 
-      collectionContext = files
-        .map(f => f.parsed_content)
-        .filter(content => content && content.length > 0)
-        .join('\n\n');
-      console.log('chat-tutor: using fallback parsed_content, length:', collectionContext.length);
+      collectionContext = contentParts.join('\n\n');
+      contextSource = 'PARSED_CONTENT_FALLBACK';
+      console.log(`[${contextSource}] Using parsed_content, length: ${collectionContext.length}`);
     }
     
     console.log('chat-tutor: final collectionContext length:', collectionContext.length);

@@ -736,12 +736,13 @@ serve(async (req) => {
 
     // STEP 4 & 5: Generate embeddings and prepare inserts
     // CRITICAL: Only insert chunks that have valid embeddings
+    // Prepare chunk inserts - embedding can be NULL if generation fails
     const chunkInserts: {
       file_id: string;
       collection_id: string;
       user_id: string;
       chunk_text: string;
-      embedding: string;
+      embedding: string | null;
       chunk_index: number;
       metadata: Record<string, unknown>;
     }[] = [];
@@ -749,87 +750,76 @@ serve(async (req) => {
     let embeddingSuccessCount = 0;
     let embeddingFailCount = 0;
     const embeddingFailureSamples: string[] = [];
-    const embeddingFailureStatuses = new Set<number>();
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}...`);
 
+      let embedding: number[] | null = null;
+      let embeddingFailed = false;
+      let embeddingErrorStatus: number | undefined;
+      let embeddingErrorMessage: string | undefined;
+
       try {
-        // STEP 4: Generate embedding (REQUIRED, must await)
-        const embedding = await generateEmbedding(chunk);
-
-        // Embedding is validated inside generateEmbedding()
-        // If we reach here, embedding is a valid non-empty numeric array
-
+        embedding = await generateEmbedding(chunk);
         embeddingSuccessCount++;
-
-        // STEP 5: Prepare insert with chunk + embedding TOGETHER
-        chunkInserts.push({
-          file_id: fileId,
-          collection_id: fileData.collection_id,
-          user_id: fileData.user_id,
-          chunk_text: chunk,
-          embedding: JSON.stringify(embedding),
-          chunk_index: i,
-          metadata: { length: chunk.length, embeddingDimensions: embedding.length },
-        });
+        console.log(`Embedding SUCCESS for chunk ${i}, dimensions: ${embedding.length}`);
       } catch (embErr) {
-        // Embedding failed - DO NOT INSERT THIS CHUNK
+        // Embedding failed - still insert chunk with NULL embedding
         embeddingFailCount++;
+        embeddingFailed = true;
 
-        let status: number | undefined;
-        let message = embErr instanceof Error ? embErr.message : String(embErr);
+        embeddingErrorMessage = embErr instanceof Error ? embErr.message : String(embErr);
 
         if (embErr instanceof EmbeddingGatewayError) {
-          status = embErr.status;
+          embeddingErrorStatus = embErr.status;
           if (embErr.responseText) {
-            message = `${message} - ${embErr.responseText}`;
+            const preview = embErr.responseText.substring(0, 200);
+            embeddingErrorMessage = `${embeddingErrorMessage} - ${preview}`;
           }
         }
 
-        if (typeof status === "number") embeddingFailureStatuses.add(status);
-
-        console.error(`EMBEDDING FAILED for chunk ${i}:`, { status, message });
+        console.error(`EMBEDDING FAILED for chunk ${i}:`, { 
+          status: embeddingErrorStatus, 
+          message: embeddingErrorMessage 
+        });
 
         if (embeddingFailureSamples.length < 3) {
-          embeddingFailureSamples.push(`[${status ?? "unknown"}] ${message}`);
+          embeddingFailureSamples.push(`[${embeddingErrorStatus ?? "unknown"}] ${embeddingErrorMessage}`);
         }
-        // Skip this chunk entirely - do not insert without embedding
       }
+
+      // Always insert the chunk - with or without embedding
+      const metadata: Record<string, unknown> = { length: chunk.length };
+      if (embeddingFailed) {
+        metadata.embeddingFailed = true;
+        if (embeddingErrorStatus) metadata.embeddingErrorStatus = embeddingErrorStatus;
+        if (embeddingErrorMessage) metadata.embeddingErrorMessage = embeddingErrorMessage;
+      } else if (embedding) {
+        metadata.embeddingDimensions = embedding.length;
+      }
+
+      chunkInserts.push({
+        file_id: fileId,
+        collection_id: fileData.collection_id,
+        user_id: fileData.user_id,
+        chunk_text: chunk,
+        embedding: embedding ? JSON.stringify(embedding) : null,
+        chunk_index: i,
+        metadata,
+      });
     }
 
     console.log("=== EMBEDDING SUMMARY ===");
     console.log(`Chunks created: ${chunks.length}`);
     console.log(`Embeddings generated: ${embeddingSuccessCount}`);
     console.log(`Embeddings failed: ${embeddingFailCount}`);
-    console.log("Embedding failure statuses:", Array.from(embeddingFailureStatuses));
-
-    // CRITICAL: If ALL embeddings failed, abort and return error
-    if (chunks.length > 0 && embeddingSuccessCount === 0) {
-      console.error("ALL EMBEDDINGS FAILED - Aborting to prevent data corruption");
-
-      await supabaseClient.from("uploaded_files").update({ processing: false }).eq("id", fileId);
-
-      // Prefer surfacing payment/rate limit issues explicitly
-      const status = embeddingFailureStatuses.has(402)
-        ? 402
-        : embeddingFailureStatuses.has(429)
-          ? 429
-          : 500;
-
-      return new Response(
-        JSON.stringify({
-          error: "All embedding generations failed. Document cannot be indexed for semantic search.",
-          chunksCreated: chunks.length,
-          embeddingsGenerated: 0,
-          chunksInserted: 0,
-          abortReason: "ALL_EMBEDDINGS_FAILED",
-          embeddingFailureSamples,
-        }),
-        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (embeddingFailureSamples.length > 0) {
+      console.log("Embedding failure samples:", embeddingFailureSamples);
     }
+
+    // NOTE: We no longer abort if embeddings fail - chunks are always stored
+    // This ensures the tutor can still work via fallback context retrieval
 
     // Insert chunks (only those with valid embeddings)
     let chunksInserted = 0;
@@ -876,21 +866,32 @@ serve(async (req) => {
     console.log("=== PARSE-DOCUMENT COMPLETE ===");
     console.log(`Final stats: ${chunksInserted} chunks inserted with embeddings`);
 
+    // Build response - always success if we got here
+    const responseData: Record<string, unknown> = {
+      success: true,
+      parsedContent: summary,
+      contentLength: parsedContent.length,
+      readable: true,
+      chunksCreated: chunks.length,
+      embeddingsGenerated: embeddingSuccessCount,
+      embeddingsFailed: embeddingFailCount,
+      chunksInserted: chunksInserted,
+    };
+
+    // Add warning if embeddings failed but parsing succeeded
+    if (embeddingSuccessCount === 0 && chunks.length > 0) {
+      responseData.warning = "Embeddings could not be generated (API unavailable). Semantic search will be limited, but the tutor can still use your content.";
+      responseData.embeddingFailureSamples = embeddingFailureSamples;
+      responseData.message = "Document parsed and saved. Semantic search unavailable.";
+    } else if (embeddingFailCount > 0) {
+      responseData.warning = `${embeddingFailCount} chunks have no embeddings due to API errors.`;
+      responseData.message = `Document parsed. ${embeddingFailCount} chunks without embeddings.`;
+    } else {
+      responseData.message = "Document parsed and saved successfully";
+    }
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        parsedContent: summary,
-        contentLength: parsedContent.length,
-        readable: true,
-        chunksCreated: chunks.length,
-        embeddingsGenerated: embeddingSuccessCount,
-        embeddingsFailed: embeddingFailCount,
-        chunksInserted: chunksInserted,
-        message:
-          embeddingFailCount > 0
-            ? `Document parsed. ${embeddingFailCount} chunks skipped due to embedding failures.`
-            : "Document parsed and saved successfully",
-      }),
+      JSON.stringify(responseData),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
