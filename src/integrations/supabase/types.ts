@@ -44,7 +44,7 @@ export type Database = {
           chunk_text: string
           collection_id: string
           created_at: string | null
-          embedding: string | null
+          embedding: string
           file_id: string
           id: string
           metadata: Json | null
@@ -55,7 +55,7 @@ export type Database = {
           chunk_text: string
           collection_id: string
           created_at?: string | null
-          embedding?: string | null
+          embedding: string
           file_id: string
           id?: string
           metadata?: Json | null
@@ -66,7 +66,7 @@ export type Database = {
           chunk_text?: string
           collection_id?: string
           created_at?: string | null
-          embedding?: string | null
+          embedding?: string
           file_id?: string
           id?: string
           metadata?: Json | null

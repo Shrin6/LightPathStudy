@@ -389,6 +389,32 @@ serve(async (req) => {
       );
     }
 
+    // =====================================================
+    // SAFETY GUARD: Check for NULL embeddings before semantic search
+    // If any chunks have NULL embeddings, indexing is incomplete
+    // =====================================================
+    const { data: nullEmbeddingCheck, error: nullCheckError } = await supabaseClient
+      .from('document_chunks')
+      .select('id')
+      .eq('collection_id', collectionId)
+      .is('embedding', null)
+      .limit(1);
+    
+    if (nullCheckError) {
+      console.error('Error checking for null embeddings:', nullCheckError);
+    }
+    
+    if (nullEmbeddingCheck && nullEmbeddingCheck.length > 0) {
+      console.warn('SAFETY GUARD: Found chunks with NULL embeddings - indexing incomplete');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Document indexing is still in progress. Please wait a moment and try again.',
+          indexingIncomplete: true
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Generate query embedding for semantic search
     const queryText = messages[messages.length - 1]?.content || mode;
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
@@ -428,9 +454,16 @@ serve(async (req) => {
         }
       );
 
-      if (chunksData && chunksData.length > 0) {
-        collectionContext = chunksData.map((c: any) => c.chunk_text).join('\n\n');
-        console.log(`Retrieved ${chunksData.length} relevant chunks for context`);
+      if (chunksError) {
+        console.error('Semantic search error:', chunksError);
+      } else if (chunksData && chunksData.length > 0) {
+        // Validate similarity values are not null
+        const validChunks = chunksData.filter((c: any) => c.similarity !== null && typeof c.similarity === 'number');
+        if (validChunks.length !== chunksData.length) {
+          console.warn(`Warning: ${chunksData.length - validChunks.length} chunks had null similarity values`);
+        }
+        collectionContext = validChunks.map((c: any) => c.chunk_text).join('\n\n');
+        console.log(`Retrieved ${validChunks.length} relevant chunks for context (similarity validated)`);
       }
     }
     

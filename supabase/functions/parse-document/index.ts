@@ -108,7 +108,10 @@ function chunkText(text: string): string[] {
   return chunks.filter(c => c.length >= 100); // Filter out tiny chunks
 }
 
-// Generate embeddings using Lovable AI
+// =====================================================
+// EMBEDDING GENERATION - REQUIRED, NOT OPTIONAL
+// Must return valid numeric array or throw error
+// =====================================================
 async function generateEmbedding(text: string): Promise<number[]> {
   const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not found');
@@ -126,11 +129,25 @@ async function generateEmbedding(text: string): Promise<number[]> {
   });
   
   if (!response.ok) {
-    throw new Error(`Embedding generation failed: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`Embedding generation failed: ${response.status} - ${errorText}`);
   }
   
   const data = await response.json();
-  return data.data[0].embedding;
+  const embedding = data.data?.[0]?.embedding;
+  
+  // CRITICAL: Validate embedding is a valid numeric array
+  if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
+    throw new Error('Invalid embedding response: embedding is null, not an array, or empty');
+  }
+  
+  // Validate all elements are numbers
+  const allNumbers = embedding.every((val: unknown) => typeof val === 'number' && !isNaN(val));
+  if (!allNumbers) {
+    throw new Error('Invalid embedding response: contains non-numeric values');
+  }
+  
+  return embedding;
 }
 
 // Vision-based document analysis using Lovable AI
@@ -416,7 +433,8 @@ serve(async (req) => {
       );
     }
 
-    console.log('Parsing document with ID:', fileId);
+    console.log('=== PARSE-DOCUMENT START ===');
+    console.log('File ID:', fileId);
 
     // PRE-FLIGHT: Check if file exists in database
     const { data: fileData, error: fileError } = await supabaseClient
@@ -440,13 +458,10 @@ serve(async (req) => {
       );
     }
 
-    console.log('File data:', fileData);
+    console.log('File metadata:', { name: fileData.file_name, type: fileData.file_type, size: fileData.file_size });
 
     // PRE-FLIGHT: Check if file exists in storage
-    console.log('[parse-document] Attempting storage download:', {
-      bucket: 'study-files',
-      path: fileData.file_path
-    });
+    console.log('[parse-document] Downloading from storage:', fileData.file_path);
 
     const { data: fileBlob, error: downloadError } = await supabaseClient
       .storage
@@ -454,32 +469,21 @@ serve(async (req) => {
       .download(fileData.file_path);
 
     if (downloadError) {
-      console.error('[parse-document] Download FAILED:', {
-        bucket: 'study-files',
-        path: fileData.file_path,
-        errorCode: downloadError.message,
-        errorMessage: downloadError.message
-      });
+      console.error('[parse-document] Download FAILED:', downloadError.message);
       return new Response(
         JSON.stringify({ error: `Storage error: ${downloadError.message}` }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[parse-document] Download SUCCESS:', {
-      bucket: 'study-files',
-      path: fileData.file_path,
-      blobSize: fileBlob?.size || 'unknown'
-    });
+    console.log('[parse-document] Download SUCCESS, blob size:', fileBlob?.size);
 
     // =====================================================
     // DEV MODE: Generate mock data without calling AI APIs
-    // This allows testing when credits are exhausted
     // =====================================================
     if (DEV_MODE) {
       console.log('DEV MODE ENABLED - Generating mock document data');
       
-      // Mock chunks about cell biology (realistic study content)
       const mockChunks = [
         "Cell Division Overview: Cell division is the process by which a parent cell divides into two or more daughter cells. There are two main types: mitosis and meiosis. Mitosis produces identical daughter cells for growth and repair. Meiosis produces gametes with half the chromosomes for sexual reproduction.",
         "Phases of Mitosis: The cell cycle includes interphase and mitotic phase. The four stages of mitosis are Prophase (chromosomes condense, nuclear envelope breaks down), Metaphase (chromosomes align at cell equator), Anaphase (sister chromatids separate), and Telophase (nuclear envelopes reform, chromosomes decondense).",
@@ -487,17 +491,17 @@ serve(async (req) => {
         "Chromosomes and Genes: Chromosomes are structures made of DNA and proteins. Humans have 46 chromosomes (23 pairs). Genes are segments of DNA that code for proteins. Alleles are different versions of the same gene. Homologous chromosomes carry genes for the same traits but may have different alleles."
       ];
       
-      // Generate mock embeddings (1536 dimensions to match text-embedding-3-small)
       const generateMockEmbedding = (seed: number): number[] => {
         const embedding: number[] = [];
         for (let i = 0; i < 1536; i++) {
-          // Generate pseudo-random floats between -1 and 1
           embedding.push(Math.sin(seed * (i + 1)) * Math.cos(i * 0.1));
         }
         return embedding;
       };
       
-      // Insert mock chunks into database
+      // Delete old chunks first
+      await supabaseClient.from('document_chunks').delete().eq('file_id', fileId);
+      
       const chunkInserts = mockChunks.map((chunk, index) => ({
         file_id: fileId,
         collection_id: fileData.collection_id,
@@ -515,34 +519,24 @@ serve(async (req) => {
       if (chunkError) {
         console.error('DEV MODE - Error inserting mock chunks:', chunkError);
       } else {
-        console.log(`DEV MODE - Inserted ${chunkInserts.length} mock chunks`);
+        console.log(`DEV MODE - Inserted ${chunkInserts.length} mock chunks with embeddings`);
       }
       
-      // Mock parsed content (summary)
       const mockParsedContent = mockChunks.join('\n\n');
       
-      // Update file record
-      const { error: updateError } = await supabaseClient
+      await supabaseClient
         .from('uploaded_files')
-        .update({ 
-          parsed_content: mockParsedContent,
-          processing: false 
-        })
+        .update({ parsed_content: mockParsedContent, processing: false })
         .eq('id', fileId);
-      
-      if (updateError) {
-        console.error('DEV MODE - Error updating file:', updateError);
-        return new Response(
-          JSON.stringify({ error: `DEV MODE - Failed to save: ${updateError.message}` }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       
       return new Response(
         JSON.stringify({ 
           success: true, 
           parsedContent: mockParsedContent,
           contentLength: mockParsedContent.length,
+          chunksCreated: mockChunks.length,
+          embeddingsGenerated: mockChunks.length,
+          chunksInserted: mockChunks.length,
           message: 'DEV MODE - Mock document data generated successfully',
           devMode: true
         }),
@@ -550,7 +544,7 @@ serve(async (req) => {
       );
     }
     // =====================================================
-    // END DEV MODE BLOCK - Normal processing continues below
+    // END DEV MODE BLOCK
     // =====================================================
 
     // Mark as processing
@@ -567,19 +561,16 @@ serve(async (req) => {
     const fileType = fileData.file_type.toLowerCase();
 
     try {
-      // NEVER run OCR on PPTX - always use XML extraction
       if (fileType.includes('pptx')) {
         const text = await fileBlob.text();
         parsedContent = sanitizeText(text.substring(0, 5000));
         console.log('PPTX extracted (no OCR needed)');
       } else if (fileType.includes('pdf')) {
-        // Count pages first
         const arrayBuffer = await fileBlob.arrayBuffer();
         const pageCount = countPDFPages(arrayBuffer);
         
         console.log(`PDF has ${pageCount} pages`);
         
-        // Large file protection: skip OCR if > 30 pages
         if (pageCount > 30) {
           parsedContent = extractPDFText(arrayBuffer);
           parsedContent = sanitizeText(parsedContent);
@@ -589,26 +580,18 @@ serve(async (req) => {
           }
           console.log('Large PDF - OCR skipped');
         } else {
-          // Standard extraction first
           parsedContent = extractPDFText(arrayBuffer);
-          
-          // Detect document mode
           documentMode = detectDocumentMode(arrayBuffer, parsedContent);
           console.log(`Document mode detected: ${documentMode}`);
           
-          // If vision or hybrid mode, use vision analysis
           if (documentMode === 'vision' || (documentMode === 'hybrid' && parsedContent.length < 500)) {
             console.log('Using vision-based analysis...');
-            
-            // Convert to base64 for vision API
             const uint8Array = new Uint8Array(arrayBuffer);
             const base64 = btoa(String.fromCharCode(...uint8Array));
             
             try {
               structuredData = await analyzeDocumentWithVision(base64);
               console.log('Vision analysis complete');
-              
-              // Convert structured data to text
               parsedContent = structuredToText(structuredData);
               parsedContent = sanitizeText(parsedContent);
               
@@ -617,28 +600,20 @@ serve(async (req) => {
               }
             } catch (visionError) {
               console.error('Vision analysis failed:', visionError);
-              // Fall back to OCR
               console.log('Falling back to OCR...');
               const ocrText = await runOCR(arrayBuffer, fileId, supabaseClient);
               parsedContent = sanitizeText(parsedContent + '\n\n' + ocrText);
             }
           } else {
-            // Text mode - check if OCR needed
             if (parsedContent.length >= 300) {
               parsedContent = sanitizeText(parsedContent);
               console.log('Standard extraction successful');
             } else {
-              // Mark for OCR processing
               needsOCR = true;
               console.log('Text extraction < 300 chars, OCR needed');
-              
-              // Run OCR
               const ocrText = await runOCR(arrayBuffer, fileId, supabaseClient);
-              
-              // Merge extracted + OCR text
               const combinedText = `${parsedContent}\n\n${ocrText}`.trim();
               parsedContent = sanitizeText(combinedText);
-              
               console.log('OCR processing complete');
             }
           }
@@ -650,7 +625,6 @@ serve(async (req) => {
         const text = await fileBlob.text();
         parsedContent = sanitizeText(text.substring(0, 5000));
       } else if (fileType.includes('image')) {
-        // Use vision analysis for images
         console.log('Processing image with vision analysis...');
         const arrayBuffer = await fileBlob.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
@@ -673,82 +647,56 @@ serve(async (req) => {
       parsedContent = `File uploaded but parsing encountered an error. File name: ${fileData.file_name}`;
     }
 
-    // CRITICAL: Sanitize content again
     parsedContent = sanitizeText(parsedContent);
-
     console.log('Parsed content length after sanitization:', parsedContent.length);
 
-    // =====================================================
-    // READABILITY GATE: Final check before chunking
-    // =====================================================
+    // READABILITY GATE
     const contentIsReadable = isReadableText(parsedContent);
-    console.log('parse-document: isReadableText =', contentIsReadable);
+    console.log('isReadableText =', contentIsReadable);
 
-    // If content failed readability AND we haven't tried OCR/vision yet, try one more time
     if (!contentIsReadable && !needsOCR && (fileType.includes('pdf') || fileType.includes('image'))) {
-      console.log('parse-document: Content unreadable, attempting OCR fallback...');
+      console.log('Content unreadable, attempting OCR fallback...');
       try {
         const arrayBuffer = await fileBlob.arrayBuffer();
         const ocrText = await runOCR(arrayBuffer, fileId, supabaseClient);
         const sanitizedOCR = sanitizeText(ocrText);
         
         if (isReadableText(sanitizedOCR)) {
-          console.log('parse-document: OCR fallback succeeded');
+          console.log('OCR fallback succeeded');
           parsedContent = sanitizedOCR;
         } else {
-          console.log('parse-document: OCR fallback also failed readability check');
+          console.log('OCR fallback also failed readability check');
         }
       } catch (ocrError) {
-        console.error('parse-document: OCR fallback error:', ocrError);
+        console.error('OCR fallback error:', ocrError);
       }
     }
 
-    // Re-check readability after potential OCR fallback
     const finalReadable = isReadableText(parsedContent);
-    console.log('parse-document: Final readability =', finalReadable);
+    console.log('Final readability =', finalReadable);
 
-    // =====================================================
-    // DELETE OLD CHUNKS: Protect against legacy corruption
-    // Always delete old chunks before inserting new ones
-    // =====================================================
+    // DELETE OLD CHUNKS
     const { error: deleteChunksError } = await supabaseClient
       .from('document_chunks')
       .delete()
       .eq('file_id', fileId);
     
     if (deleteChunksError) {
-      console.error('parse-document: Error deleting old chunks:', deleteChunksError);
+      console.error('Error deleting old chunks:', deleteChunksError);
     } else {
-      console.log('parse-document: Cleared any existing chunks for file');
+      console.log('Cleared any existing chunks for file');
     }
 
-    // =====================================================
-    // HANDLE UNREADABLE CONTENT: Set clear warning, skip chunking
-    // =====================================================
+    // HANDLE UNREADABLE CONTENT
     if (!finalReadable) {
-      console.log('parse-document: Document unreadable - storing warning message, skipping chunks');
+      console.log('Document unreadable - storing warning message, skipping chunks');
       
       const warningMessage = 'Document unreadable — no real text detected. Try a clearer or text-based PDF.';
       
-      // Update file with warning (no chunks)
-      const { error: updateError } = await supabaseClient
+      await supabaseClient
         .from('uploaded_files')
-        .update({ 
-          parsed_content: warningMessage,
-          processing: false 
-        })
+        .update({ parsed_content: warningMessage, processing: false })
         .eq('id', fileId);
-
-      if (updateError) {
-        console.error('parse-document: Error updating with warning:', updateError);
-        return new Response(
-          JSON.stringify({ 
-            error: `Failed to save: ${updateError.message}`,
-            details: updateError.details || 'No additional details'
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
 
       return new Response(
         JSON.stringify({ 
@@ -756,6 +704,8 @@ serve(async (req) => {
           parsedContent: warningMessage,
           contentLength: warningMessage.length,
           readable: false,
+          chunksCreated: 0,
+          embeddingsGenerated: 0,
           chunksInserted: 0,
           message: 'Document parsed but content was unreadable. No chunks created.'
         }),
@@ -765,34 +715,58 @@ serve(async (req) => {
 
     // =====================================================
     // CONTENT IS READABLE: Proceed with chunking and embeddings
+    // CRITICAL: Enforce correct pipeline order:
+    // 1. Extract text (done above)
+    // 2. Sanitize text (done above)
+    // 3. Chunk text
+    // 4. Generate embedding (REQUIRED for each chunk)
+    // 5. Insert chunk + embedding TOGETHER
     // =====================================================
     
-    // Limit length for storage
     const MAX_LENGTH = 50000;
     if (parsedContent.length > MAX_LENGTH) {
       parsedContent = parsedContent.substring(0, MAX_LENGTH) + 
         '\n\n[Content truncated for storage - full document available for AI analysis]';
     }
 
-    // PRE-FLIGHT: Validate sanitized content before saving
     if (parsedContent.includes('\u0000')) {
       console.error('Sanitization failed - null bytes still present');
       parsedContent = parsedContent.replace(/\u0000/g, '');
     }
 
-    // Chunk the content into semantic sections
+    // STEP 3: Chunk the content
     const chunks = chunkText(parsedContent);
-    console.log(`parse-document: Created ${chunks.length} chunks from document`);
+    console.log(`Created ${chunks.length} chunks from document`);
 
-    // Generate embeddings and store chunks
-    const chunkInserts = [];
+    // STEP 4 & 5: Generate embeddings and prepare inserts
+    // CRITICAL: Only insert chunks that have valid embeddings
+    const chunkInserts: {
+      file_id: string;
+      collection_id: string;
+      user_id: string;
+      chunk_text: string;
+      embedding: string;
+      chunk_index: number;
+      metadata: Record<string, unknown>;
+    }[] = [];
+    
+    let embeddingSuccessCount = 0;
+    let embeddingFailCount = 0;
+    
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}`);
+      console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}...`);
       
       try {
+        // STEP 4: Generate embedding (REQUIRED, must await)
         const embedding = await generateEmbedding(chunk);
         
+        // Embedding is validated inside generateEmbedding()
+        // If we reach here, embedding is a valid non-empty numeric array
+        
+        embeddingSuccessCount++;
+        
+        // STEP 5: Prepare insert with chunk + embedding TOGETHER
         chunkInserts.push({
           file_id: fileId,
           collection_id: fileData.collection_id,
@@ -800,24 +774,45 @@ serve(async (req) => {
           chunk_text: chunk,
           embedding: JSON.stringify(embedding),
           chunk_index: i,
-          metadata: { length: chunk.length }
+          metadata: { length: chunk.length, embeddingDimensions: embedding.length }
         });
+        
       } catch (embErr) {
-        console.error(`Error generating embedding for chunk ${i}:`, embErr);
-        // Continue with other chunks even if one fails - still save chunk without embedding
-        chunkInserts.push({
-          file_id: fileId,
-          collection_id: fileData.collection_id,
-          user_id: fileData.user_id,
-          chunk_text: chunk,
-          embedding: null,
-          chunk_index: i,
-          metadata: { length: chunk.length, embeddingFailed: true }
-        });
+        // Embedding failed - DO NOT INSERT THIS CHUNK
+        embeddingFailCount++;
+        console.error(`EMBEDDING FAILED for chunk ${i}:`, embErr instanceof Error ? embErr.message : embErr);
+        // Skip this chunk entirely - do not insert without embedding
       }
     }
 
-    // Insert all chunks
+    console.log('=== EMBEDDING SUMMARY ===');
+    console.log(`Chunks created: ${chunks.length}`);
+    console.log(`Embeddings generated: ${embeddingSuccessCount}`);
+    console.log(`Embeddings failed: ${embeddingFailCount}`);
+
+    // CRITICAL: If ALL embeddings failed, abort and return error
+    if (chunks.length > 0 && embeddingSuccessCount === 0) {
+      console.error('ALL EMBEDDINGS FAILED - Aborting to prevent data corruption');
+      
+      await supabaseClient
+        .from('uploaded_files')
+        .update({ processing: false })
+        .eq('id', fileId);
+
+      return new Response(
+        JSON.stringify({ 
+          error: 'All embedding generations failed. Document cannot be indexed for semantic search.',
+          chunksCreated: chunks.length,
+          embeddingsGenerated: 0,
+          chunksInserted: 0,
+          abortReason: 'ALL_EMBEDDINGS_FAILED'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Insert chunks (only those with valid embeddings)
+    let chunksInserted = 0;
     if (chunkInserts.length > 0) {
       const { error: chunkError } = await supabaseClient
         .from('document_chunks')
@@ -825,22 +820,28 @@ serve(async (req) => {
 
       if (chunkError) {
         console.error('Error inserting chunks:', chunkError);
-        // Don't fail the whole operation if chunking fails
+        // This is a critical error - chunks with embeddings couldn't be saved
+        return new Response(
+          JSON.stringify({ 
+            error: `Failed to insert chunks: ${chunkError.message}`,
+            chunksCreated: chunks.length,
+            embeddingsGenerated: embeddingSuccessCount,
+            chunksInserted: 0
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       } else {
-        console.log(`parse-document: Successfully inserted ${chunkInserts.length} chunks`);
+        chunksInserted = chunkInserts.length;
+        console.log(`Successfully inserted ${chunksInserted} chunks with embeddings`);
       }
     }
 
-    // Store content in parsed_content for backward compatibility (first 10k chars)
+    // Store content in parsed_content for backward compatibility
     const summary = parsedContent.substring(0, 10000);
 
-    // Update database with parsed content and clear processing flag
     const { error: updateError } = await supabaseClient
       .from('uploaded_files')
-      .update({ 
-        parsed_content: summary,
-        processing: false 
-      })
+      .update({ parsed_content: summary, processing: false })
       .eq('id', fileId);
 
     if (updateError) {
@@ -854,14 +855,22 @@ serve(async (req) => {
       );
     }
 
+    console.log('=== PARSE-DOCUMENT COMPLETE ===');
+    console.log(`Final stats: ${chunksInserted} chunks inserted with embeddings`);
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         parsedContent: summary,
         contentLength: parsedContent.length,
         readable: true,
-        chunksInserted: chunkInserts.length,
-        message: 'Document parsed and saved successfully'
+        chunksCreated: chunks.length,
+        embeddingsGenerated: embeddingSuccessCount,
+        embeddingsFailed: embeddingFailCount,
+        chunksInserted: chunksInserted,
+        message: embeddingFailCount > 0 
+          ? `Document parsed. ${embeddingFailCount} chunks skipped due to embedding failures.`
+          : 'Document parsed and saved successfully'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
