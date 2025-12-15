@@ -16,7 +16,9 @@ const corsHeaders = {
 
 // PRE-FLIGHT: Validate environment variables
 function validateEnvironment(): { valid: boolean; error?: string } {
-  const requiredVars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "LOVABLE_API_KEY"];
+  // LOVABLE_API_KEY is intentionally NOT required here.
+  // Parsing + chunk storage must succeed even when embeddings are unavailable.
+  const requiredVars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
   for (const varName of requiredVars) {
     if (!Deno.env.get(varName)) {
       return { valid: false, error: `Missing required environment variable: ${varName}` };
@@ -143,6 +145,11 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
+    console.warn(
+      "Embedding gateway error:",
+      response.status,
+      (errorText || "").substring(0, 200),
+    );
     throw new EmbeddingGatewayError(
       response.status,
       `Embedding generation failed: ${response.status}`,
