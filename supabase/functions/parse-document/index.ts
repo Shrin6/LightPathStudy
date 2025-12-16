@@ -111,9 +111,14 @@ function chunkText(text: string): string[] {
 }
 
 // =====================================================
-// EMBEDDING GENERATION - REQUIRED, NOT OPTIONAL
-// Must return valid numeric array or throw error
+// EMBEDDING GENERATION (BEST-EFFORT)
+// Must return a valid numeric array or throw an error.
+// IMPORTANT: Embeddings must never block parsing + chunk storage.
 // =====================================================
+const EMBEDDING_ENDPOINT = "https://ai.gateway.lovable.dev/v1/embeddings";
+// Must be a gateway-allowed model name (see gateway error allowed models list)
+const EMBEDDING_MODEL = "google/gemini-2.5-flash";
+
 class EmbeddingGatewayError extends Error {
   status: number;
   responseText?: string;
@@ -130,31 +135,41 @@ async function generateEmbedding(text: string): Promise<number[]> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "text-embedding-3-small",
-      input: text,
-      encoding_format: "float",
-    }),
-  });
+  const post = (body: Record<string, unknown>) =>
+    fetch(EMBEDDING_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+  // Try with encoding_format first (OpenAI-compatible); retry without if gateway rejects it.
+  let response = await post({ model: EMBEDDING_MODEL, input: text, encoding_format: "float" });
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    console.warn(
-      "Embedding gateway error:",
-      response.status,
-      (errorText || "").substring(0, 200),
-    );
-    throw new EmbeddingGatewayError(
-      response.status,
-      `Embedding generation failed: ${response.status}`,
-      errorText,
-    );
+    let errorText = await response.text().catch(() => "");
+    console.warn("Embedding gateway error:", response.status, (errorText || "").substring(0, 200));
+
+    const shouldRetryWithoutEncoding =
+      response.status === 400 &&
+      (errorText.includes("encoding_format") || errorText.includes("encoding format"));
+
+    if (shouldRetryWithoutEncoding) {
+      console.log("Retrying embedding request without encoding_format...");
+      response = await post({ model: EMBEDDING_MODEL, input: text });
+    }
+
+    if (!response.ok) {
+      errorText = await response.text().catch(() => errorText);
+      console.warn("Embedding gateway error:", response.status, (errorText || "").substring(0, 200));
+      throw new EmbeddingGatewayError(
+        response.status,
+        `Embedding generation failed: ${response.status}`,
+        errorText,
+      );
+    }
   }
 
   const data = await response.json();
@@ -742,7 +757,11 @@ serve(async (req) => {
     console.log(`Created ${chunks.length} chunks from document`);
 
     // STEP 4 & 5: Generate embeddings and prepare inserts
-    // CRITICAL: Only insert chunks that have valid embeddings
+    // Embeddings are best-effort; chunks are always stored.
+    console.log("Embedding model selected:", EMBEDDING_MODEL);
+
+    const EXPECTED_EMBEDDING_DIMS = 768; // matches DB column: vector(768)
+
     // Prepare chunk inserts - embedding can be NULL if generation fails
     const chunkInserts: {
       file_id: string;
@@ -769,12 +788,18 @@ serve(async (req) => {
 
       try {
         embedding = await generateEmbedding(chunk);
+        if (embedding.length !== EXPECTED_EMBEDDING_DIMS) {
+          throw new Error(
+            `Embedding dimension mismatch: expected ${EXPECTED_EMBEDDING_DIMS}, got ${embedding.length}`,
+          );
+        }
         embeddingSuccessCount++;
         console.log(`Embedding SUCCESS for chunk ${i}, dimensions: ${embedding.length}`);
       } catch (embErr) {
         // Embedding failed - still insert chunk with NULL embedding
         embeddingFailCount++;
         embeddingFailed = true;
+        embedding = null;
 
         embeddingErrorMessage = embErr instanceof Error ? embErr.message : String(embErr);
 
@@ -786,9 +811,9 @@ serve(async (req) => {
           }
         }
 
-        console.error(`EMBEDDING FAILED for chunk ${i}:`, { 
-          status: embeddingErrorStatus, 
-          message: embeddingErrorMessage 
+        console.error(`EMBEDDING FAILED for chunk ${i}:`, {
+          status: embeddingErrorStatus,
+          message: embeddingErrorMessage,
         });
 
         if (embeddingFailureSamples.length < 3) {
@@ -798,11 +823,15 @@ serve(async (req) => {
 
       // Always insert the chunk - with or without embedding
       const metadata: Record<string, unknown> = { length: chunk.length };
+
       if (embeddingFailed) {
+        metadata.embedding_status = "failed";
+        metadata.embedding_error = (embeddingErrorMessage || "Embedding failed").substring(0, 200);
         metadata.embeddingFailed = true;
         if (embeddingErrorStatus) metadata.embeddingErrorStatus = embeddingErrorStatus;
         if (embeddingErrorMessage) metadata.embeddingErrorMessage = embeddingErrorMessage;
       } else if (embedding) {
+        metadata.embedding_status = "ok";
         metadata.embeddingDimensions = embedding.length;
       }
 
@@ -828,26 +857,37 @@ serve(async (req) => {
     // NOTE: We no longer abort if embeddings fail - chunks are always stored
     // This ensures the tutor can still work via fallback context retrieval
 
-    // Insert chunks (only those with valid embeddings)
+    // Insert chunks (embeddings best-effort)
     let chunksInserted = 0;
     if (chunkInserts.length > 0) {
       const { error: chunkError } = await supabaseClient.from("document_chunks").insert(chunkInserts);
 
       if (chunkError) {
         console.error("Error inserting chunks:", chunkError);
-        // This is a critical error - chunks with embeddings couldn't be saved
+
+        // Best-effort: still persist parsed_content + processing=false even if chunk insert fails
+        try {
+          await supabaseClient
+            .from("uploaded_files")
+            .update({ parsed_content: parsedContent.substring(0, 10000), processing: false })
+            .eq("id", fileId);
+        } catch (e) {
+          console.error("Failed to update parsed_content after chunk insert failure:", e);
+        }
+
         return new Response(
           JSON.stringify({
             error: `Failed to insert chunks: ${chunkError.message}`,
             chunksCreated: chunks.length,
             embeddingsGenerated: embeddingSuccessCount,
+            embeddingsFailed: embeddingFailCount,
             chunksInserted: 0,
           }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       } else {
         chunksInserted = chunkInserts.length;
-        console.log(`Successfully inserted ${chunksInserted} chunks with embeddings`);
+        console.log(`Successfully inserted ${chunksInserted} chunks (embeddings best-effort)`);
       }
     }
 
