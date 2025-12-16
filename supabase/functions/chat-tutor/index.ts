@@ -400,21 +400,48 @@ serve(async (req) => {
     // ATTEMPT 1: Vector semantic search (if embedding generation works)
     const queryText = messages[messages.length - 1]?.content || mode;
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
-    
+    const EMBEDDING_MODEL = 'google/gemini-2.5-flash'; // gateway-allowed model (see allowed models list)
+
     let queryEmbedding: number[] = [];
     try {
-      const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+      console.log(`Query embedding model selected: ${EMBEDDING_MODEL}`);
+
+      const baseBody: Record<string, unknown> = {
+        model: EMBEDDING_MODEL,
+        input: queryText,
+      };
+
+      // Try with encoding_format first; retry without if rejected.
+      let embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: 'text-embedding-3-small',
-          input: queryText,
-        }),
+        body: JSON.stringify({ ...baseBody, encoding_format: 'float' }),
       });
-      
+
+      if (!embeddingResponse.ok) {
+        const errText = await embeddingResponse.text().catch(() => '');
+        console.warn('Query embedding failed:', embeddingResponse.status, errText.substring(0, 200));
+
+        const shouldRetryWithoutEncoding =
+          embeddingResponse.status === 400 &&
+          (errText.includes('encoding_format') || errText.includes('encoding format'));
+
+        if (shouldRetryWithoutEncoding) {
+          console.log('Retrying query embedding without encoding_format...');
+          embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(baseBody),
+          });
+        }
+      }
+
       if (embeddingResponse.ok) {
         const embeddingData = await embeddingResponse.json();
         queryEmbedding = embeddingData.data?.[0]?.embedding || [];
@@ -422,8 +449,8 @@ serve(async (req) => {
           console.log('Query embedding generated successfully, dimensions:', queryEmbedding.length);
         }
       } else {
-        const errText = await embeddingResponse.text().catch(() => '');
-        console.warn('Query embedding failed:', embeddingResponse.status, errText.substring(0, 200));
+        const errText2 = await embeddingResponse.text().catch(() => '');
+        console.warn('Query embedding failed:', embeddingResponse.status, errText2.substring(0, 200));
       }
     } catch (embErr) {
       console.warn('Query embedding generation error:', embErr instanceof Error ? embErr.message : embErr);
