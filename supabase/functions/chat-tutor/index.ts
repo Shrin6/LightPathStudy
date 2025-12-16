@@ -391,127 +391,35 @@ serve(async (req) => {
 
     // =====================================================
     // CONTEXT RETRIEVAL WITH GRACEFUL FALLBACKS
-    // Priority: VECTOR_CONTEXT > CHUNKS_FALLBACK > PARSED_CONTENT_FALLBACK
+    // NOTE: Lovable AI gateway does NOT support embeddings endpoint.
+    // We skip vector search entirely and use chunk/parsed_content fallback.
+    // Priority: CHUNKS_FALLBACK > PARSED_CONTENT_FALLBACK
     // =====================================================
     
     let collectionContext = '';
     let contextSource = 'NONE';
 
-    // ATTEMPT 1: Vector semantic search (if embedding generation works)
-    const queryText = messages[messages.length - 1]?.content || mode;
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
-    const EMBEDDING_MODEL = 'google/gemini-2.5-flash'; // gateway-allowed model (see allowed models list)
+    // ATTEMPT 1: Direct chunk retrieval (primary method - no embeddings needed)
+    console.log('Using CHUNKS_FALLBACK (gateway does not support embeddings)');
+    
+    const { data: directChunks, error: directChunksError } = await supabaseClient
+      .from('document_chunks')
+      .select('chunk_text, chunk_index')
+      .eq('collection_id', collectionId)
+      .order('chunk_index', { ascending: true })
+      .limit(15);
 
-    let queryEmbedding: number[] = [];
-    try {
-      console.log(`Query embedding model selected: ${EMBEDDING_MODEL}`);
-
-      const baseBody: Record<string, unknown> = {
-        model: EMBEDDING_MODEL,
-        input: queryText,
-      };
-
-      // Try with encoding_format first; retry without if rejected.
-      let embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ...baseBody, encoding_format: 'float' }),
-      });
-
-      if (!embeddingResponse.ok) {
-        const errText = await embeddingResponse.text().catch(() => '');
-        console.warn('Query embedding failed:', embeddingResponse.status, errText.substring(0, 200));
-
-        const shouldRetryWithoutEncoding =
-          embeddingResponse.status === 400 &&
-          (errText.includes('encoding_format') || errText.includes('encoding format'));
-
-        if (shouldRetryWithoutEncoding) {
-          console.log('Retrying query embedding without encoding_format...');
-          embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(baseBody),
-          });
-        }
-      }
-
-      if (embeddingResponse.ok) {
-        const embeddingData = await embeddingResponse.json();
-        queryEmbedding = embeddingData.data?.[0]?.embedding || [];
-        if (queryEmbedding.length > 0) {
-          console.log('Query embedding generated successfully, dimensions:', queryEmbedding.length);
-        }
-      } else {
-        const errText2 = await embeddingResponse.text().catch(() => '');
-        console.warn('Query embedding failed:', embeddingResponse.status, errText2.substring(0, 200));
-      }
-    } catch (embErr) {
-      console.warn('Query embedding generation error:', embErr instanceof Error ? embErr.message : embErr);
-    }
-
-    // Try vector search if we have an embedding
-    if (queryEmbedding.length > 0) {
-      try {
-        const { data: chunksData, error: chunksError } = await supabaseClient.rpc(
-          'match_document_chunks',
-          {
-            query_embedding: JSON.stringify(queryEmbedding),
-            match_collection_id: collectionId,
-            match_count: 10
-          }
-        );
-
-        if (chunksError) {
-          console.warn('Semantic search RPC error:', chunksError.message);
-        } else if (chunksData && chunksData.length > 0) {
-          // Filter chunks with valid similarity scores
-          const validChunks = chunksData.filter((c: any) => 
-            c.similarity !== null && typeof c.similarity === 'number' && c.chunk_text
-          );
-          
-          if (validChunks.length > 0) {
-            collectionContext = validChunks.map((c: any) => c.chunk_text).join('\n\n');
-            contextSource = 'VECTOR_CONTEXT';
-            console.log(`[${contextSource}] Retrieved ${validChunks.length} chunks via semantic search`);
-          } else {
-            console.warn('Vector search returned chunks but all had null similarity');
-          }
-        }
-      } catch (rpcErr) {
-        console.warn('Vector search exception:', rpcErr instanceof Error ? rpcErr.message : rpcErr);
-      }
-    }
-
-    // ATTEMPT 2: Direct chunk retrieval fallback (no embeddings needed)
-    if (!collectionContext || collectionContext.length < 300) {
-      console.log('Trying CHUNKS_FALLBACK...');
+    if (directChunksError) {
+      console.warn('Direct chunks query error:', directChunksError.message);
+    } else if (directChunks && directChunks.length > 0) {
+      const chunkTexts = directChunks
+        .filter((c: any) => c.chunk_text && c.chunk_text.length > 0)
+        .map((c: any) => c.chunk_text);
       
-      const { data: directChunks, error: directChunksError } = await supabaseClient
-        .from('document_chunks')
-        .select('chunk_text, chunk_index')
-        .eq('collection_id', collectionId)
-        .order('chunk_index', { ascending: true })
-        .limit(15);
-
-      if (directChunksError) {
-        console.warn('Direct chunks query error:', directChunksError.message);
-      } else if (directChunks && directChunks.length > 0) {
-        const chunkTexts = directChunks
-          .filter((c: any) => c.chunk_text && c.chunk_text.length > 0)
-          .map((c: any) => c.chunk_text);
-        
-        if (chunkTexts.length > 0) {
-          collectionContext = chunkTexts.join('\n\n');
-          contextSource = 'CHUNKS_FALLBACK';
-          console.log(`[${contextSource}] Retrieved ${chunkTexts.length} chunks directly`);
-        }
+      if (chunkTexts.length > 0) {
+        collectionContext = chunkTexts.join('\n\n');
+        contextSource = 'CHUNKS_FALLBACK';
+        console.log(`[${contextSource}] Retrieved ${chunkTexts.length} chunks directly`);
       }
     }
 
@@ -610,6 +518,8 @@ ${collectionContext}
 
     console.log('Calling AI - Mode:', mode, 'Model:', selectedModel, 'Content length:', notes.length);
 
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
+    
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {

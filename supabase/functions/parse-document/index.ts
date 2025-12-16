@@ -112,12 +112,15 @@ function chunkText(text: string): string[] {
 
 // =====================================================
 // EMBEDDING GENERATION (BEST-EFFORT)
-// Must return a valid numeric array or throw an error.
-// IMPORTANT: Embeddings must never block parsing + chunk storage.
+// IMPORTANT: Lovable AI gateway does NOT support embeddings endpoint.
+// We detect this once and skip all embedding calls if unsupported.
+// Chunks are always stored - embeddings are optional for semantic search.
 // =====================================================
 const EMBEDDING_ENDPOINT = "https://ai.gateway.lovable.dev/v1/embeddings";
-// Must be a gateway-allowed model name (see gateway error allowed models list)
 const EMBEDDING_MODEL = "google/gemini-2.5-flash";
+
+// Cache the capability check result for this function invocation
+let embeddingsAvailable: boolean | null = null;
 
 class EmbeddingGatewayError extends Error {
   status: number;
@@ -131,45 +134,77 @@ class EmbeddingGatewayError extends Error {
   }
 }
 
-async function generateEmbedding(text: string): Promise<number[]> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
+// One-time check if gateway supports embeddings
+async function checkEmbeddingCapability(): Promise<boolean> {
+  if (embeddingsAvailable !== null) return embeddingsAvailable;
 
-  const post = (body: Record<string, unknown>) =>
-    fetch(EMBEDDING_ENDPOINT, {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    console.log("EMBEDDINGS_CHECK: No API key - embeddings disabled");
+    embeddingsAvailable = false;
+    return false;
+  }
+
+  try {
+    const testResponse = await fetch(EMBEDDING_ENDPOINT, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ model: EMBEDDING_MODEL, input: "test" }),
     });
 
-  // Try with encoding_format first (OpenAI-compatible); retry without if gateway rejects it.
-  let response = await post({ model: EMBEDDING_MODEL, input: text, encoding_format: "float" });
+    const responseText = await testResponse.text();
+    console.log("EMBEDDINGS_CHECK status:", testResponse.status);
+    console.log("EMBEDDINGS_CHECK body:", responseText.substring(0, 200));
+
+    // Check for known "not supported" error patterns
+    const notSupported =
+      testResponse.status === 400 &&
+      (responseText.includes("prompt") ||
+        responseText.includes("messages") ||
+        responseText.includes("invalid model"));
+
+    if (notSupported) {
+      console.log("EMBEDDINGS_CHECK: Gateway does NOT support embeddings - skipping all embedding calls");
+      embeddingsAvailable = false;
+      return false;
+    }
+
+    // If we got a 200 or a different error, assume embeddings might work
+    embeddingsAvailable = testResponse.ok;
+    console.log("EMBEDDINGS_CHECK: Embeddings available =", embeddingsAvailable);
+    return embeddingsAvailable;
+  } catch (err) {
+    console.warn("EMBEDDINGS_CHECK: Error during capability check:", err);
+    embeddingsAvailable = false;
+    return false;
+  }
+}
+
+async function generateEmbedding(text: string): Promise<number[]> {
+  // Skip if we already know embeddings aren't available
+  if (embeddingsAvailable === false) {
+    throw new EmbeddingGatewayError(400, "Embeddings not available (gateway does not support)");
+  }
+
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
+
+  const response = await fetch(EMBEDDING_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
+  });
 
   if (!response.ok) {
-    let errorText = await response.text().catch(() => "");
+    const errorText = await response.text().catch(() => "");
     console.warn("Embedding gateway error:", response.status, (errorText || "").substring(0, 200));
-
-    const shouldRetryWithoutEncoding =
-      response.status === 400 &&
-      (errorText.includes("encoding_format") || errorText.includes("encoding format"));
-
-    if (shouldRetryWithoutEncoding) {
-      console.log("Retrying embedding request without encoding_format...");
-      response = await post({ model: EMBEDDING_MODEL, input: text });
-    }
-
-    if (!response.ok) {
-      errorText = await response.text().catch(() => errorText);
-      console.warn("Embedding gateway error:", response.status, (errorText || "").substring(0, 200));
-      throw new EmbeddingGatewayError(
-        response.status,
-        `Embedding generation failed: ${response.status}`,
-        errorText,
-      );
-    }
+    throw new EmbeddingGatewayError(response.status, `Embedding generation failed: ${response.status}`, errorText);
   }
 
   const data = await response.json();
@@ -756,9 +791,9 @@ serve(async (req) => {
     const chunks = chunkText(parsedContent);
     console.log(`Created ${chunks.length} chunks from document`);
 
-    // STEP 4 & 5: Generate embeddings and prepare inserts
-    // Embeddings are best-effort; chunks are always stored.
-    console.log("Embedding model selected:", EMBEDDING_MODEL);
+    // STEP 4: Check if embeddings are available (one-time per invocation)
+    const canGenerateEmbeddings = await checkEmbeddingCapability();
+    console.log("Embedding capability:", canGenerateEmbeddings ? "AVAILABLE" : "NOT AVAILABLE (skipping)");
 
     const EXPECTED_EMBEDDING_DIMS = 768; // matches DB column: vector(768)
 
@@ -779,46 +814,47 @@ serve(async (req) => {
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}...`);
 
       let embedding: number[] | null = null;
       let embeddingFailed = false;
       let embeddingErrorStatus: number | undefined;
       let embeddingErrorMessage: string | undefined;
 
-      try {
-        embedding = await generateEmbedding(chunk);
-        if (embedding.length !== EXPECTED_EMBEDDING_DIMS) {
-          throw new Error(
-            `Embedding dimension mismatch: expected ${EXPECTED_EMBEDDING_DIMS}, got ${embedding.length}`,
-          );
-        }
-        embeddingSuccessCount++;
-        console.log(`Embedding SUCCESS for chunk ${i}, dimensions: ${embedding.length}`);
-      } catch (embErr) {
-        // Embedding failed - still insert chunk with NULL embedding
-        embeddingFailCount++;
-        embeddingFailed = true;
-        embedding = null;
+      // Only attempt embedding if gateway supports it
+      if (canGenerateEmbeddings) {
+        console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}...`);
+        try {
+          embedding = await generateEmbedding(chunk);
+          if (embedding.length !== EXPECTED_EMBEDDING_DIMS) {
+            throw new Error(
+              `Embedding dimension mismatch: expected ${EXPECTED_EMBEDDING_DIMS}, got ${embedding.length}`,
+            );
+          }
+          embeddingSuccessCount++;
+          console.log(`Embedding SUCCESS for chunk ${i}, dimensions: ${embedding.length}`);
+        } catch (embErr) {
+          embeddingFailCount++;
+          embeddingFailed = true;
+          embedding = null;
+          embeddingErrorMessage = embErr instanceof Error ? embErr.message : String(embErr);
 
-        embeddingErrorMessage = embErr instanceof Error ? embErr.message : String(embErr);
+          if (embErr instanceof EmbeddingGatewayError) {
+            embeddingErrorStatus = embErr.status;
+            if (embErr.responseText) {
+              embeddingErrorMessage = `${embeddingErrorMessage} - ${embErr.responseText.substring(0, 200)}`;
+            }
+          }
 
-        if (embErr instanceof EmbeddingGatewayError) {
-          embeddingErrorStatus = embErr.status;
-          if (embErr.responseText) {
-            const preview = embErr.responseText.substring(0, 200);
-            embeddingErrorMessage = `${embeddingErrorMessage} - ${preview}`;
+          console.error(`EMBEDDING FAILED for chunk ${i}:`, { status: embeddingErrorStatus, message: embeddingErrorMessage });
+
+          if (embeddingFailureSamples.length < 3) {
+            embeddingFailureSamples.push(`[${embeddingErrorStatus ?? "unknown"}] ${embeddingErrorMessage}`);
           }
         }
-
-        console.error(`EMBEDDING FAILED for chunk ${i}:`, {
-          status: embeddingErrorStatus,
-          message: embeddingErrorMessage,
-        });
-
-        if (embeddingFailureSamples.length < 3) {
-          embeddingFailureSamples.push(`[${embeddingErrorStatus ?? "unknown"}] ${embeddingErrorMessage}`);
-        }
+      } else {
+        // Embeddings not available - just mark as skipped
+        embeddingFailed = true;
+        embeddingErrorMessage = "Embeddings not available (gateway does not support)";
       }
 
       // Always insert the chunk - with or without embedding
