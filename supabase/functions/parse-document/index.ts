@@ -111,71 +111,81 @@ function chunkText(text: string): string[] {
 }
 
 // =====================================================
-// EMBEDDING GENERATION (BEST-EFFORT)
-// IMPORTANT: Lovable AI gateway does NOT support embeddings endpoint.
-// We detect this once and skip all embedding calls if unsupported.
+// EMBEDDING GENERATION using OpenRouter API
+// OpenRouter supports real embeddings via openai/text-embedding-3-small
 // Chunks are always stored - embeddings are optional for semantic search.
 // =====================================================
-const EMBEDDING_ENDPOINT = "https://ai.gateway.lovable.dev/v1/embeddings";
-const EMBEDDING_MODEL = "google/gemini-2.5-flash";
+const OPENROUTER_EMBEDDING_ENDPOINT = "https://openrouter.ai/api/v1/embeddings";
+const OPENROUTER_EMBEDDING_MODEL = "openai/text-embedding-3-small";
+const EXPECTED_EMBEDDING_DIMS = 1536; // text-embedding-3-small outputs 1536 dims
 
 // Cache the capability check result for this function invocation
 let embeddingsAvailable: boolean | null = null;
 
-class EmbeddingGatewayError extends Error {
+class EmbeddingError extends Error {
   status: number;
   responseText?: string;
 
   constructor(status: number, message: string, responseText?: string) {
     super(message);
-    this.name = "EmbeddingGatewayError";
+    this.name = "EmbeddingError";
     this.status = status;
     this.responseText = responseText;
   }
 }
 
-// One-time check if gateway supports embeddings
+// One-time check if OpenRouter embeddings are working
 async function checkEmbeddingCapability(): Promise<boolean> {
   if (embeddingsAvailable !== null) return embeddingsAvailable;
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    console.log("EMBEDDINGS_CHECK: No API key - embeddings disabled");
+  const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+  if (!OPENROUTER_API_KEY) {
+    console.log("EMBEDDINGS_CHECK: No OPENROUTER_API_KEY - embeddings disabled");
     embeddingsAvailable = false;
     return false;
   }
 
   try {
-    const testResponse = await fetch(EMBEDDING_ENDPOINT, {
+    console.log("EMBEDDINGS_CHECK: Testing OpenRouter embeddings endpoint...");
+    const testResponse = await fetch(OPENROUTER_EMBEDDING_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://studybuddy.lovable.app",
+        "X-Title": "StudyBuddy",
       },
-      body: JSON.stringify({ model: EMBEDDING_MODEL, input: "test" }),
+      body: JSON.stringify({ 
+        model: OPENROUTER_EMBEDDING_MODEL, 
+        input: "test embedding capability" 
+      }),
     });
 
     const responseText = await testResponse.text();
     console.log("EMBEDDINGS_CHECK status:", testResponse.status);
-    console.log("EMBEDDINGS_CHECK body:", responseText.substring(0, 200));
+    console.log("EMBEDDINGS_CHECK response preview:", responseText.substring(0, 300));
 
-    // Check for known "not supported" error patterns
-    const notSupported =
-      testResponse.status === 400 &&
-      (responseText.includes("prompt") ||
-        responseText.includes("messages") ||
-        responseText.includes("invalid model"));
-
-    if (notSupported) {
-      console.log("EMBEDDINGS_CHECK: Gateway does NOT support embeddings - skipping all embedding calls");
+    if (!testResponse.ok) {
+      console.log("EMBEDDINGS_CHECK: OpenRouter returned error - embeddings disabled");
       embeddingsAvailable = false;
       return false;
     }
 
-    // If we got a 200 or a different error, assume embeddings might work
-    embeddingsAvailable = testResponse.ok;
-    console.log("EMBEDDINGS_CHECK: Embeddings available =", embeddingsAvailable);
-    return embeddingsAvailable;
+    // Verify we got a valid embedding back
+    try {
+      const data = JSON.parse(responseText);
+      const testEmbedding = data?.data?.[0]?.embedding;
+      if (Array.isArray(testEmbedding) && testEmbedding.length > 0) {
+        console.log(`EMBEDDINGS_CHECK: SUCCESS! Got ${testEmbedding.length}-dim embedding`);
+        embeddingsAvailable = true;
+        return true;
+      }
+    } catch (e) {
+      console.warn("EMBEDDINGS_CHECK: Failed to parse response:", e);
+    }
+
+    embeddingsAvailable = false;
+    return false;
   } catch (err) {
     console.warn("EMBEDDINGS_CHECK: Error during capability check:", err);
     embeddingsAvailable = false;
@@ -186,25 +196,30 @@ async function checkEmbeddingCapability(): Promise<boolean> {
 async function generateEmbedding(text: string): Promise<number[]> {
   // Skip if we already know embeddings aren't available
   if (embeddingsAvailable === false) {
-    throw new EmbeddingGatewayError(400, "Embeddings not available (gateway does not support)");
+    throw new EmbeddingError(400, "Embeddings not available (OpenRouter not configured or failed)");
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
+  const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+  if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY not found");
 
-  const response = await fetch(EMBEDDING_ENDPOINT, {
+  const response = await fetch(OPENROUTER_EMBEDDING_ENDPOINT, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
+      "HTTP-Referer": "https://studybuddy.lovable.app",
+      "X-Title": "StudyBuddy",
     },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: text }),
+    body: JSON.stringify({ 
+      model: OPENROUTER_EMBEDDING_MODEL, 
+      input: text 
+    }),
   });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => "");
-    console.warn("Embedding gateway error:", response.status, (errorText || "").substring(0, 200));
-    throw new EmbeddingGatewayError(response.status, `Embedding generation failed: ${response.status}`, errorText);
+    console.warn("OpenRouter embedding error:", response.status, (errorText || "").substring(0, 200));
+    throw new EmbeddingError(response.status, `Embedding generation failed: ${response.status}`, errorText);
   }
 
   const data = await response.json();
@@ -218,6 +233,7 @@ async function generateEmbedding(text: string): Promise<number[]> {
     throw new Error("Invalid embedding response: embedding contains non-numeric values");
   }
 
+  console.log(`Generated embedding with ${embedding.length} dimensions`);
   return embedding;
 }
 
@@ -795,8 +811,6 @@ serve(async (req) => {
     const canGenerateEmbeddings = await checkEmbeddingCapability();
     console.log("Embedding capability:", canGenerateEmbeddings ? "AVAILABLE" : "NOT AVAILABLE (skipping)");
 
-    const EXPECTED_EMBEDDING_DIMS = 768; // matches DB column: vector(768)
-
     // Prepare chunk inserts - embedding can be NULL if generation fails
     const chunkInserts: {
       file_id: string;
@@ -838,7 +852,7 @@ serve(async (req) => {
           embedding = null;
           embeddingErrorMessage = embErr instanceof Error ? embErr.message : String(embErr);
 
-          if (embErr instanceof EmbeddingGatewayError) {
+          if (embErr instanceof EmbeddingError) {
             embeddingErrorStatus = embErr.status;
             if (embErr.responseText) {
               embeddingErrorMessage = `${embeddingErrorMessage} - ${embErr.responseText.substring(0, 200)}`;
@@ -876,7 +890,8 @@ serve(async (req) => {
         collection_id: fileData.collection_id,
         user_id: fileData.user_id,
         chunk_text: chunk,
-        embedding: embedding ? JSON.stringify(embedding) : null,
+        // Convert embedding array to Postgres vector literal string format
+        embedding: embedding ? `[${embedding.join(",")}]` : null,
         chunk_index: i,
         metadata,
       });
