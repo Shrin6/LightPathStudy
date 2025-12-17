@@ -391,35 +391,114 @@ serve(async (req) => {
 
     // =====================================================
     // CONTEXT RETRIEVAL WITH GRACEFUL FALLBACKS
-    // NOTE: Lovable AI gateway does NOT support embeddings endpoint.
-    // We skip vector search entirely and use chunk/parsed_content fallback.
-    // Priority: CHUNKS_FALLBACK > PARSED_CONTENT_FALLBACK
+    // Priority: VECTOR_SEARCH (OpenRouter) > CHUNKS_FALLBACK > PARSED_CONTENT_FALLBACK
     // =====================================================
     
     let collectionContext = '';
     let contextSource = 'NONE';
-
-    // ATTEMPT 1: Direct chunk retrieval (primary method - no embeddings needed)
-    console.log('Using CHUNKS_FALLBACK (gateway does not support embeddings)');
     
-    const { data: directChunks, error: directChunksError } = await supabaseClient
-      .from('document_chunks')
-      .select('chunk_text, chunk_index')
-      .eq('collection_id', collectionId)
-      .order('chunk_index', { ascending: true })
-      .limit(15);
-
-    if (directChunksError) {
-      console.warn('Direct chunks query error:', directChunksError.message);
-    } else if (directChunks && directChunks.length > 0) {
-      const chunkTexts = directChunks
-        .filter((c: any) => c.chunk_text && c.chunk_text.length > 0)
-        .map((c: any) => c.chunk_text);
+    // Helper: Generate query embedding using OpenRouter
+    async function generateQueryEmbedding(query: string): Promise<number[] | null> {
+      const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+      if (!OPENROUTER_API_KEY) {
+        console.log('No OPENROUTER_API_KEY - skipping vector search');
+        return null;
+      }
       
-      if (chunkTexts.length > 0) {
-        collectionContext = chunkTexts.join('\n\n');
-        contextSource = 'CHUNKS_FALLBACK';
-        console.log(`[${contextSource}] Retrieved ${chunkTexts.length} chunks directly`);
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://studybuddy.lovable.app',
+            'X-Title': 'StudyBuddy',
+          },
+          body: JSON.stringify({
+            model: 'openai/text-embedding-3-small',
+            input: query,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          console.warn('Query embedding failed:', response.status, errorText.substring(0, 200));
+          return null;
+        }
+        
+        const data = await response.json();
+        const embedding = data?.data?.[0]?.embedding;
+        
+        if (Array.isArray(embedding) && embedding.length > 0) {
+          console.log(`Generated query embedding: ${embedding.length} dimensions`);
+          return embedding;
+        }
+        return null;
+      } catch (err) {
+        console.warn('Query embedding error:', err);
+        return null;
+      }
+    }
+    
+    // Get the latest user message for semantic search
+    const lastUserMessage = messages.filter((m: any) => m.role === 'user').pop();
+    const searchQuery = lastUserMessage?.content || '';
+    
+    // ATTEMPT 1: Vector search via match_document_chunks RPC
+    if (searchQuery && searchQuery.length > 10) {
+      console.log('Attempting VECTOR_SEARCH via OpenRouter embedding...');
+      const queryEmbedding = await generateQueryEmbedding(searchQuery);
+      
+      if (queryEmbedding) {
+        // Format embedding as Postgres vector literal
+        const embeddingVector = `[${queryEmbedding.join(',')}]`;
+        
+        const { data: semanticChunks, error: semanticError } = await supabaseClient
+          .rpc('match_document_chunks', {
+            query_embedding: embeddingVector,
+            match_collection_id: collectionId,
+            match_count: 10,
+          });
+        
+        if (semanticError) {
+          console.warn('RPC match_document_chunks error:', semanticError.message);
+        } else if (semanticChunks && semanticChunks.length > 0) {
+          const validChunks = semanticChunks
+            .filter((c: any) => c.chunk_text && c.similarity !== null)
+            .sort((a: any, b: any) => (b.similarity || 0) - (a.similarity || 0));
+          
+          if (validChunks.length > 0) {
+            collectionContext = validChunks.map((c: any) => c.chunk_text).join('\n\n');
+            contextSource = 'VECTOR_SEARCH';
+            console.log(`[${contextSource}] Retrieved ${validChunks.length} chunks, top similarity: ${validChunks[0]?.similarity?.toFixed(3)}`);
+          }
+        }
+      }
+    }
+
+    // ATTEMPT 2: Direct chunk retrieval (fallback - no embeddings needed)
+    if (!collectionContext || collectionContext.length < 300) {
+      console.log('Using CHUNKS_FALLBACK...');
+      
+      const { data: directChunks, error: directChunksError } = await supabaseClient
+        .from('document_chunks')
+        .select('chunk_text, chunk_index')
+        .eq('collection_id', collectionId)
+        .order('chunk_index', { ascending: true })
+        .limit(15);
+
+      if (directChunksError) {
+        console.warn('Direct chunks query error:', directChunksError.message);
+      } else if (directChunks && directChunks.length > 0) {
+        const chunkTexts = directChunks
+          .filter((c: any) => c.chunk_text && c.chunk_text.length > 0)
+          .map((c: any) => c.chunk_text);
+        
+        if (chunkTexts.length > 0) {
+          collectionContext = chunkTexts.join('\n\n');
+          contextSource = 'CHUNKS_FALLBACK';
+          console.log(`[${contextSource}] Retrieved ${chunkTexts.length} chunks directly`);
+        }
       }
     }
 
