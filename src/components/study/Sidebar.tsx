@@ -58,6 +58,8 @@ export const Sidebar = ({
             file_name,
             file_type,
             file_size,
+            file_path,
+            processing,
             created_at
           )
         `)

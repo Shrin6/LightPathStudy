@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Folder, FileText, Trash2, Upload, MoveRight } from "lucide-react";
+import { Plus, Folder, FileText, Trash2, Upload, MoveRight, RefreshCw } from "lucide-react";
 import { FileUploadDialog } from "./FileUploadDialog";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,39 @@ export const CollectionsList = ({
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{ id: string; name: string; currentCollectionId: string } | null>(null);
   const [targetCollectionId, setTargetCollectionId] = useState<string>('');
+  const [reparsingFileId, setReparsingFileId] = useState<string | null>(null);
+
+  const handleReparseFile = async (fileId: string, filePath: string, collectionId: string) => {
+    setReparsingFileId(fileId);
+    try {
+      // Set processing flag
+      await supabase
+        .from('uploaded_files')
+        .update({ processing: true })
+        .eq('id', fileId);
+
+      // Delete existing chunks for this file
+      await supabase
+        .from('document_chunks')
+        .delete()
+        .eq('file_id', fileId);
+
+      // Trigger parse-document function
+      const { error } = await supabase.functions.invoke('parse-document', {
+        body: { fileId, filePath, collectionId }
+      });
+
+      if (error) throw error;
+
+      toast.success('Re-parsing started');
+      onRefresh();
+    } catch (error: any) {
+      console.error('Re-parse error:', error);
+      toast.error(error.message || 'Failed to re-parse file');
+    } finally {
+      setReparsingFileId(null);
+    }
+  };
 
   const handleCreateCollection = async () => {
     if (!newCollectionName.trim()) {
@@ -209,19 +242,37 @@ export const CollectionsList = ({
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         <FileText className="h-2.5 w-2.5 flex-shrink-0" />
                         <span className="truncate">{file.file_name}</span>
+                        {file.processing && (
+                          <RefreshCw className="h-2.5 w-2.5 animate-spin text-primary" />
+                        )}
                       </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openMoveDialog(file.id, file.file_name, collection.id);
-                        }}
-                        title="Move to another collection"
-                      >
-                        <MoveRight className="h-2 w-2" />
-                      </Button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-3 w-3"
+                          disabled={reparsingFileId === file.id || file.processing}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReparseFile(file.id, file.file_path, collection.id);
+                          }}
+                          title="Re-parse file"
+                        >
+                          <RefreshCw className={`h-2 w-2 ${reparsingFileId === file.id ? 'animate-spin' : ''}`} />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-3 w-3"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openMoveDialog(file.id, file.file_name, collection.id);
+                          }}
+                          title="Move to another collection"
+                        >
+                          <MoveRight className="h-2 w-2" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
