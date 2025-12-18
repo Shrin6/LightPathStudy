@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Tesseract from "https://esm.sh/tesseract.js@5.0.4";
 
 // =====================================================
 // DEV MODE FLAG - Set to true to bypass AI API calls
@@ -16,8 +15,6 @@ const corsHeaders = {
 
 // PRE-FLIGHT: Validate environment variables
 function validateEnvironment(): { valid: boolean; error?: string } {
-  // LOVABLE_API_KEY is intentionally NOT required here.
-  // Parsing + chunk storage must succeed even when embeddings are unavailable.
   const requiredVars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
   for (const varName of requiredVars) {
     if (!Deno.env.get(varName)) {
@@ -30,55 +27,75 @@ function validateEnvironment(): { valid: boolean; error?: string } {
 // Sanitize text for PostgreSQL TEXT column
 function sanitizeText(text: string): string {
   return text
-    .replace(/\u0000/g, "") // Remove null bytes
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // Remove control characters
-    .replace(/\uFFFD/g, "") // Remove replacement characters
-    .replace(/[\u{10000}-\u{10FFFF}]/gu, "") // Remove 4-byte UTF-8 characters
+    .replace(/\u0000/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .replace(/\uFFFD/g, "")
+    .replace(/[\u{10000}-\u{10FFFF}]/gu, "")
     .trim();
 }
 
 // =====================================================
-// READABILITY CHECK: Detect if text is real human-readable content
-// Returns false for binary garbage, decoded junk, or insufficient content
+// READABILITY CHECK: For standard text extraction
 // =====================================================
 function isReadableText(text: string): boolean {
   const trimmed = text.trim();
 
-  // Too short to be meaningful
   if (trimmed.length < 200) {
     console.log("isReadableText: FAIL - too short:", trimmed.length);
     return false;
   }
 
-  // Count alphabetic characters (letters)
   const alphaMatches = trimmed.match(/[a-zA-Z]/g);
   const alphaCount = alphaMatches ? alphaMatches.length : 0;
   const alphaRatio = alphaCount / trimmed.length;
 
-  // If less than 30% alphabetic, it's likely binary garbage
   if (alphaRatio < 0.3) {
     console.log("isReadableText: FAIL - low alpha ratio:", alphaRatio.toFixed(2));
     return false;
   }
 
-  // Check for long runs of non-alphanumeric junk (20+ chars of symbols/gibberish)
   const junkPattern = /[^a-zA-Z0-9\s.,;:?!'"\-()]{15,}/;
   if (junkPattern.test(trimmed)) {
     console.log("isReadableText: FAIL - detected long junk run");
     return false;
   }
 
-  // Check for reasonable word-like patterns (at least some spaces between letters)
   const wordMatches = trimmed.match(/[a-zA-Z]{2,}/g);
   const wordCount = wordMatches ? wordMatches.length : 0;
 
-  // Should have at least 20 word-like patterns for 200+ chars
   if (wordCount < 20) {
     console.log("isReadableText: FAIL - too few words:", wordCount);
     return false;
   }
 
   console.log("isReadableText: PASS - alphaRatio:", alphaRatio.toFixed(2), "wordCount:", wordCount);
+  return true;
+}
+
+// =====================================================
+// VISION READABILITY CHECK: More lenient for diagrams
+// =====================================================
+function isVisionContentReadable(text: string, docKind: string): boolean {
+  const trimmed = text.trim();
+  
+  // For diagrams, we're more lenient - even 50 chars of explanation is valid
+  const minLength = docKind === "DIAGRAM" || docKind === "CHART" ? 50 : 100;
+  
+  if (trimmed.length < minLength) {
+    console.log(`isVisionContentReadable: FAIL - too short for ${docKind}:`, trimmed.length);
+    return false;
+  }
+
+  // Check for some alphabetic content
+  const alphaMatches = trimmed.match(/[a-zA-Z]/g);
+  const alphaCount = alphaMatches ? alphaMatches.length : 0;
+  
+  if (alphaCount < 20) {
+    console.log("isVisionContentReadable: FAIL - too few letters:", alphaCount);
+    return false;
+  }
+
+  console.log(`isVisionContentReadable: PASS - docKind=${docKind}, length=${trimmed.length}`);
   return true;
 }
 
@@ -107,19 +124,17 @@ function chunkText(text: string): string[] {
     chunks.push(currentChunk.trim());
   }
 
-  return chunks.filter((c) => c.length >= 100); // Filter out tiny chunks
+  // For vision content, allow smaller chunks (50+ chars)
+  return chunks.filter((c) => c.length >= 50);
 }
 
 // =====================================================
 // EMBEDDING GENERATION using OpenRouter API
-// OpenRouter supports real embeddings via openai/text-embedding-3-small
-// Chunks are always stored - embeddings are optional for semantic search.
 // =====================================================
 const OPENROUTER_EMBEDDING_ENDPOINT = "https://openrouter.ai/api/v1/embeddings";
 const OPENROUTER_EMBEDDING_MODEL = "openai/text-embedding-3-small";
-const EXPECTED_EMBEDDING_DIMS = 1536; // text-embedding-3-small outputs 1536 dims
+const EXPECTED_EMBEDDING_DIMS = 1536;
 
-// Cache the capability check result for this function invocation
 let embeddingsAvailable: boolean | null = null;
 
 class EmbeddingError extends Error {
@@ -134,7 +149,6 @@ class EmbeddingError extends Error {
   }
 }
 
-// One-time check if OpenRouter embeddings are working
 async function checkEmbeddingCapability(): Promise<boolean> {
   if (embeddingsAvailable !== null) return embeddingsAvailable;
 
@@ -155,9 +169,9 @@ async function checkEmbeddingCapability(): Promise<boolean> {
         "HTTP-Referer": "https://studybuddy.lovable.app",
         "X-Title": "StudyBuddy",
       },
-      body: JSON.stringify({ 
-        model: OPENROUTER_EMBEDDING_MODEL, 
-        input: "test embedding capability" 
+      body: JSON.stringify({
+        model: OPENROUTER_EMBEDDING_MODEL,
+        input: "test embedding capability",
       }),
     });
 
@@ -171,7 +185,6 @@ async function checkEmbeddingCapability(): Promise<boolean> {
       return false;
     }
 
-    // Verify we got a valid embedding back
     try {
       const data = JSON.parse(responseText);
       const testEmbedding = data?.data?.[0]?.embedding;
@@ -194,7 +207,6 @@ async function checkEmbeddingCapability(): Promise<boolean> {
 }
 
 async function generateEmbedding(text: string): Promise<number[]> {
-  // Skip if we already know embeddings aren't available
   if (embeddingsAvailable === false) {
     throw new EmbeddingError(400, "Embeddings not available (OpenRouter not configured or failed)");
   }
@@ -210,9 +222,9 @@ async function generateEmbedding(text: string): Promise<number[]> {
       "HTTP-Referer": "https://studybuddy.lovable.app",
       "X-Title": "StudyBuddy",
     },
-    body: JSON.stringify({ 
-      model: OPENROUTER_EMBEDDING_MODEL, 
-      input: text 
+    body: JSON.stringify({
+      model: OPENROUTER_EMBEDDING_MODEL,
+      input: text,
     }),
   });
 
@@ -237,35 +249,61 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return embedding;
 }
 
+// =====================================================
 // Vision-based document analysis using Lovable AI
-async function analyzeDocumentWithVision(imageBase64: string): Promise<any> {
+// Returns structured JSON for both text pages and diagrams
+// =====================================================
+async function analyzeDocumentWithVision(imageBase64: string, mimeType: string = "image/jpeg"): Promise<any> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
 
-  const visionPrompt = `You are a document text extraction assistant.
+  console.log("parse-document: IMAGE_VISION → calling vision API");
 
-The user has provided an image (photo, scan, or screenshot) of a document.
+  const visionPrompt = `You are a document and image analysis assistant.
 
-Your task is to extract ALL visible text from the image exactly as written.
+Analyze the provided image and determine what type of content it contains.
 
-Rules:
-- Do NOT summarize
-- Do NOT explain
-- Do NOT add commentary
-- Do NOT guess missing text
-- Do NOT refuse
-- Do NOT say "not enough information"
+Return ONLY valid JSON with this exact structure:
+{
+  "mode": "vision",
+  "doc_kind": "TEXT_PAGE" | "DIAGRAM" | "CHART" | "MIXED",
+  "title": "",
+  "sections": [{"heading": "", "content": ""}],
+  "figures": [{"label": "", "what_it_shows": "", "key_takeaway": ""}],
+  "concepts": ["", ""],
+  "questions_found": [{"question": "", "answer_choices": ""}]
+}
 
-Formatting:
-- Output plain text only
-- Preserve headings, paragraphs, lists, formulas, and tables
-- Keep math symbols, units, and punctuation exactly as shown
-- Separate paragraphs with a blank line
-- Keep question/answer formatting if present
+Rules based on content type:
 
-If some text is unclear, extract what IS visible and continue.
+IF IT'S MOSTLY TEXT (doc_kind="TEXT_PAGE"):
+- Extract ALL visible text exactly as written
+- Put the text into sections[].content
+- Preserve headings, lists, formulas, tables
+- Keep math symbols, units, punctuation exactly
+- If questions/problems are visible, add them to questions_found
 
-Return ONLY the extracted text.`;
+IF IT'S A DIAGRAM (doc_kind="DIAGRAM"):
+- Identify all labels, arrows, connections
+- Describe what the diagram shows in sections[0].content
+- Add each labeled component to figures[] with what_it_shows and key_takeaway
+- Extract key concepts shown
+- Explain the relationships between components
+
+IF IT'S A CHART/GRAPH (doc_kind="CHART"):
+- Identify the chart type and axes
+- Extract data labels and values
+- Explain what the chart represents in sections[0].content
+- Add figure entries for important data points
+
+IF IT'S MIXED (doc_kind="MIXED"):
+- Extract both the text and describe the figures
+- Fill both sections and figures arrays
+
+CRITICAL:
+- Return ONLY valid JSON, no markdown, no explanation outside JSON
+- Do not refuse or say "not enough information"
+- Always provide some content - even if image is unclear, describe what IS visible`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -282,7 +320,7 @@ Return ONLY the extracted text.`;
             { type: "text", text: visionPrompt },
             {
               type: "image_url",
-              image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+              image_url: { url: `data:${mimeType};base64,${imageBase64}` },
             },
           ],
         },
@@ -292,41 +330,62 @@ Return ONLY the extracted text.`;
   });
 
   if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    console.error("Vision API error:", response.status, errorText.substring(0, 200));
     throw new Error(`Vision analysis failed: ${response.status}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content || "";
 
-  // Return as plain text structure for consistency with rest of pipeline
-  return {
-    mode: "vision",
-    sections: [{ heading: "", content: content.trim() }],
-    concepts: [],
-    problems: [],
-    figures: [],
-  };
+  // Parse JSON from response
+  let cleanContent = content.trim();
+  if (cleanContent.startsWith("```json")) {
+    cleanContent = cleanContent.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+  }
+  if (cleanContent.startsWith("```")) {
+    cleanContent = cleanContent.replace(/```\n?/g, "");
+  }
+
+  try {
+    const parsed = JSON.parse(cleanContent);
+    console.log(`parse-document: vision doc_kind=${parsed.doc_kind || "unknown"}`);
+    return parsed;
+  } catch (parseError) {
+    console.error("Vision JSON parse failed, wrapping raw content:", parseError);
+    // Return raw content as a section if JSON parsing fails
+    return {
+      mode: "vision",
+      doc_kind: "TEXT_PAGE",
+      title: "",
+      sections: [{ heading: "Extracted Content", content: cleanContent }],
+      figures: [],
+      concepts: [],
+      questions_found: [],
+    };
+  }
 }
 
 // Detect document type (text-based vs image-based)
 function detectDocumentMode(arrayBuffer: ArrayBuffer, extractedText: string): string {
-  // If extracted text is substantial, it's text-based
   if (extractedText.length >= 500) {
     return "text";
   }
-
-  // If very little text extracted, likely image-based
   if (extractedText.length < 200) {
     return "vision";
   }
-
-  // Mixed content
   return "hybrid";
 }
 
 // Convert structured vision output to text chunks
 function structuredToText(structured: any): string {
   let text = "";
+  const docKind = structured.doc_kind || "TEXT_PAGE";
+
+  // Add title if present
+  if (structured.title) {
+    text += `${structured.title}\n\n`;
+  }
 
   // Add sections
   if (structured.sections && Array.isArray(structured.sections)) {
@@ -336,24 +395,42 @@ function structuredToText(structured: any): string {
     }
   }
 
-  // Add concepts
-  if (structured.concepts && Array.isArray(structured.concepts)) {
-    text += "\n\nKey Concepts:\n" + structured.concepts.join(", ");
-  }
-
-  // Add problems
-  if (structured.problems && Array.isArray(structured.problems)) {
-    text += "\n\nProblems:\n";
-    for (const problem of structured.problems) {
-      text += `\n${problem.number || ""} ${problem.question || ""} ${problem.data || ""}`;
+  // Add figures (for diagrams/charts)
+  if (structured.figures && Array.isArray(structured.figures) && structured.figures.length > 0) {
+    text += "\n\nFigures and Components:\n";
+    for (const fig of structured.figures) {
+      if (fig.label) {
+        text += `\n• ${fig.label}`;
+        if (fig.what_it_shows) text += `: ${fig.what_it_shows}`;
+        if (fig.key_takeaway) text += ` (Key point: ${fig.key_takeaway})`;
+      }
     }
   }
 
-  // Add figures
-  if (structured.figures && Array.isArray(structured.figures)) {
-    text += "\n\nFigures:\n";
-    for (const fig of structured.figures) {
-      text += `\n${fig.label || ""}: ${fig.meaning || ""}`;
+  // Add concepts
+  if (structured.concepts && Array.isArray(structured.concepts) && structured.concepts.length > 0) {
+    const validConcepts = structured.concepts.filter((c: string) => c && c.trim());
+    if (validConcepts.length > 0) {
+      text += "\n\nKey Concepts: " + validConcepts.join(", ");
+    }
+  }
+
+  // Add questions found
+  if (structured.questions_found && Array.isArray(structured.questions_found) && structured.questions_found.length > 0) {
+    text += "\n\nQuestions Found:\n";
+    for (const q of structured.questions_found) {
+      if (q.question) {
+        text += `\n• ${q.question}`;
+        if (q.answer_choices) text += ` [${q.answer_choices}]`;
+      }
+    }
+  }
+
+  // Legacy support for old format
+  if (structured.problems && Array.isArray(structured.problems) && structured.problems.length > 0) {
+    text += "\n\nProblems:\n";
+    for (const problem of structured.problems) {
+      text += `\n${problem.number || ""} ${problem.question || ""} ${problem.data || ""}`;
     }
   }
 
@@ -376,7 +453,6 @@ function extractPDFText(arrayBuffer: ArrayBuffer): string {
   try {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(arrayBuffer);
 
-    // Method 1: Extract text between parentheses (PDF text objects)
     const textMatches = text.match(/\(([^)]+)\)/g);
     let extracted = "";
 
@@ -392,7 +468,6 @@ function extractPDFText(arrayBuffer: ArrayBuffer): string {
         .trim();
     }
 
-    // Method 2: Extract readable ASCII text if Method 1 didn't work
     if (extracted.length < 200) {
       const asciiText = text
         .replace(/[^\x20-\x7E\n\r\t]/g, " ")
@@ -410,60 +485,13 @@ function extractPDFText(arrayBuffer: ArrayBuffer): string {
   }
 }
 
-// Run OCR on PDF with page-by-page processing
-async function runOCR(arrayBuffer: ArrayBuffer, fileId: string, supabaseClient: any): Promise<string> {
-  try {
-    console.log("Starting OCR processing...");
-
-    // Convert ArrayBuffer to Uint8Array for OCR processing
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    // Update status: processing
-    await supabaseClient.from("uploaded_files").update({ processing: true }).eq("id", fileId);
-
-    console.log("Running Tesseract OCR...");
-
-    // Run Tesseract OCR
-    const {
-      data: { text },
-    } = await Tesseract.recognize(uint8Array, "eng", {
-      logger: (m: any) => {
-        if (m.status === "recognizing text") {
-          console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
-        }
-      },
-    });
-
-    // Clean OCR text
-    const cleanedText = cleanOCRText(text);
-
-    console.log("OCR extracted text length:", cleanedText.length);
-
-    // Update status: done processing
-    await supabaseClient.from("uploaded_files").update({ processing: false }).eq("id", fileId);
-
-    return cleanedText;
-  } catch (error) {
-    console.error("OCR error:", error);
-
-    // Update status: done processing (failed)
-    await supabaseClient.from("uploaded_files").update({ processing: false }).eq("id", fileId);
-
-    return "";
-  }
-}
-
-// Clean OCR text output
-function cleanOCRText(text: string): string {
-  return text
-    .replace(/\u0000/g, "") // Remove null bytes
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // Remove control characters
-    .replace(/\uFFFD/g, "") // Remove replacement characters
-    .replace(/[\u{10000}-\u{10FFFF}]/gu, "") // Remove 4-byte UTF-8 characters
-    .replace(/[*_#`~]/g, "") // Remove Markdown characters
-    .replace(/\n{3,}/g, "\n\n") // Collapse multiple newlines
-    .replace(/\s+/g, " ") // Collapse whitespace
-    .trim();
+// Get MIME type for images
+function getImageMimeType(fileType: string): string {
+  if (fileType.includes("png")) return "image/png";
+  if (fileType.includes("gif")) return "image/gif";
+  if (fileType.includes("webp")) return "image/webp";
+  if (fileType.includes("bmp")) return "image/bmp";
+  return "image/jpeg";
 }
 
 serve(async (req) => {
@@ -472,7 +500,6 @@ serve(async (req) => {
   }
 
   try {
-    // PRE-FLIGHT: Check environment
     const envCheck = validateEnvironment();
     if (!envCheck.valid) {
       console.error("Environment validation failed:", envCheck.error);
@@ -484,7 +511,6 @@ serve(async (req) => {
 
     const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // PRE-FLIGHT: Validate request body
     let requestBody;
     try {
       requestBody = await req.json();
@@ -507,7 +533,6 @@ serve(async (req) => {
     console.log("=== PARSE-DOCUMENT START ===");
     console.log("File ID:", fileId);
 
-    // PRE-FLIGHT: Check if file exists in database
     const { data: fileData, error: fileError } = await supabaseClient
       .from("uploaded_files")
       .select("*")
@@ -531,7 +556,6 @@ serve(async (req) => {
 
     console.log("File metadata:", { name: fileData.file_name, type: fileData.file_type, size: fileData.file_size });
 
-    // PRE-FLIGHT: Check if file exists in storage
     console.log("[parse-document] Downloading from storage:", fileData.file_path);
 
     const { data: fileBlob, error: downloadError } = await supabaseClient.storage
@@ -548,17 +572,15 @@ serve(async (req) => {
 
     console.log("[parse-document] Download SUCCESS, blob size:", fileBlob?.size);
 
-    // =====================================================
-    // DEV MODE: Generate mock data without calling AI APIs
-    // =====================================================
+    // DEV MODE: Generate mock data
     if (DEV_MODE) {
       console.log("DEV MODE ENABLED - Generating mock document data");
 
       const mockChunks = [
-        "Cell Division Overview: Cell division is the process by which a parent cell divides into two or more daughter cells. There are two main types: mitosis and meiosis. Mitosis produces identical daughter cells for growth and repair. Meiosis produces gametes with half the chromosomes for sexual reproduction.",
-        "Phases of Mitosis: The cell cycle includes interphase and mitotic phase. The four stages of mitosis are Prophase (chromosomes condense, nuclear envelope breaks down), Metaphase (chromosomes align at cell equator), Anaphase (sister chromatids separate), and Telophase (nuclear envelopes reform, chromosomes decondense).",
-        "DNA Replication: Before cell division, DNA must be copied. Replication occurs during the S phase of interphase. The process is semi-conservative, meaning each new DNA molecule contains one original strand and one new strand. Key enzymes include helicase (unwinds DNA) and DNA polymerase (adds nucleotides).",
-        "Chromosomes and Genes: Chromosomes are structures made of DNA and proteins. Humans have 46 chromosomes (23 pairs). Genes are segments of DNA that code for proteins. Alleles are different versions of the same gene. Homologous chromosomes carry genes for the same traits but may have different alleles.",
+        "Cell Division Overview: Cell division is the process by which a parent cell divides into two or more daughter cells.",
+        "Phases of Mitosis: The four stages are Prophase, Metaphase, Anaphase, and Telophase.",
+        "DNA Replication: Before cell division, DNA must be copied during the S phase of interphase.",
+        "Chromosomes and Genes: Humans have 46 chromosomes (23 pairs). Genes are segments of DNA.",
       ];
 
       const generateMockEmbedding = (seed: number): number[] => {
@@ -569,7 +591,6 @@ serve(async (req) => {
         return embedding;
       };
 
-      // Delete old chunks first
       await supabaseClient.from("document_chunks").delete().eq("file_id", fileId);
 
       const chunkInserts = mockChunks.map((chunk, index) => ({
@@ -611,25 +632,22 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    // =====================================================
-    // END DEV MODE BLOCK
-    // =====================================================
 
     // Mark as processing
     await supabaseClient.from("uploaded_files").update({ processing: true }).eq("id", fileId);
 
     // Parse based on file type
     let parsedContent = "";
-    let needsOCR = false;
     let documentMode = "text";
     let structuredData: any = null;
+    let docKind = "TEXT_PAGE";
     const fileType = fileData.file_type.toLowerCase();
 
     try {
       if (fileType.includes("pptx")) {
         const text = await fileBlob.text();
         parsedContent = sanitizeText(text.substring(0, 5000));
-        console.log("PPTX extracted (no OCR needed)");
+        console.log("PPTX extracted (standard)");
       } else if (fileType.includes("pdf")) {
         const arrayBuffer = await fileBlob.arrayBuffer();
         const pageCount = countPDFPages(arrayBuffer);
@@ -641,45 +659,30 @@ serve(async (req) => {
           parsedContent = sanitizeText(parsedContent);
 
           if (parsedContent.length < 300) {
-            parsedContent = "Slide deck too large for OCR — using standard extraction. Limited text found.";
+            parsedContent = "Large PDF with limited extractable text. Try uploading individual pages as images for better results.";
           }
-          console.log("Large PDF - OCR skipped");
+          console.log("Large PDF - standard extraction only");
         } else {
           parsedContent = extractPDFText(arrayBuffer);
           documentMode = detectDocumentMode(arrayBuffer, parsedContent);
           console.log(`Document mode detected: ${documentMode}`);
 
           if (documentMode === "vision" || (documentMode === "hybrid" && parsedContent.length < 500)) {
-            console.log("Using vision-based analysis...");
-            const uint8Array = new Uint8Array(arrayBuffer);
-            const base64 = btoa(String.fromCharCode(...uint8Array));
-
-            try {
-              structuredData = await analyzeDocumentWithVision(base64);
-              console.log("Vision analysis complete");
-              parsedContent = structuredToText(structuredData);
-              parsedContent = sanitizeText(parsedContent);
-
-              if (parsedContent.length < 200) {
-                parsedContent = "Document analyzed but minimal content extracted. Try a clearer image.";
-              }
-            } catch (visionError) {
-              console.error("Vision analysis failed:", visionError);
-              console.log("Falling back to OCR...");
-              const ocrText = await runOCR(arrayBuffer, fileId, supabaseClient);
-              parsedContent = sanitizeText(parsedContent + "\n\n" + ocrText);
-            }
+            // For scanned PDFs, we cannot reliably convert to image
+            // Store a helpful message instead
+            console.log("Scanned/image-based PDF detected - image rendering not supported");
+            parsedContent = "This appears to be a scanned or image-based PDF. For best results, please upload the pages as individual images (PNG/JPG). The system can analyze images directly with vision AI.";
+            docKind = "TEXT_PAGE";
           } else {
             if (parsedContent.length >= 300) {
               parsedContent = sanitizeText(parsedContent);
               console.log("Standard extraction successful");
             } else {
-              needsOCR = true;
-              console.log("Text extraction < 300 chars, OCR needed");
-              const ocrText = await runOCR(arrayBuffer, fileId, supabaseClient);
-              const combinedText = `${parsedContent}\n\n${ocrText}`.trim();
-              parsedContent = sanitizeText(combinedText);
-              console.log("OCR processing complete");
+              // Low text content but not image-based - just use what we have
+              parsedContent = sanitizeText(parsedContent);
+              if (parsedContent.length < 50) {
+                parsedContent = "PDF has minimal extractable text. If this is a scanned document, try uploading as images.";
+              }
             }
           }
         }
@@ -690,19 +693,37 @@ serve(async (req) => {
         const text = await fileBlob.text();
         parsedContent = sanitizeText(text.substring(0, 5000));
       } else if (fileType.includes("image")) {
-        console.log("Processing image with vision analysis...");
+        // =====================================================
+        // IMAGE PROCESSING: Use Vision API (NO Tesseract)
+        // =====================================================
+        console.log("parse-document: Processing IMAGE with vision analysis...");
         const arrayBuffer = await fileBlob.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
-        const base64 = btoa(String.fromCharCode(...uint8Array));
+        
+        // Convert to base64 safely (handle large files)
+        let base64 = "";
+        const chunkSize = 32768;
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.subarray(i, i + chunkSize);
+          base64 += String.fromCharCode.apply(null, Array.from(chunk));
+        }
+        base64 = btoa(base64);
+
+        const mimeType = getImageMimeType(fileType);
+        console.log(`parse-document: Image MIME type: ${mimeType}, base64 length: ${base64.length}`);
 
         try {
-          structuredData = await analyzeDocumentWithVision(base64);
+          structuredData = await analyzeDocumentWithVision(base64, mimeType);
+          docKind = structuredData.doc_kind || "TEXT_PAGE";
           parsedContent = structuredToText(structuredData);
           parsedContent = sanitizeText(parsedContent);
           documentMode = "vision";
+          
+          console.log(`parse-document: vision doc_kind=${docKind}, text length=${parsedContent.length}`);
         } catch (visionError) {
-          console.error("Image vision analysis failed:", visionError);
-          parsedContent = `Image file uploaded: ${fileData.file_name}. Vision analysis failed.`;
+          console.error("parse-document: Image vision analysis failed:", visionError);
+          parsedContent = `Image uploaded: ${fileData.file_name}. Vision analysis encountered an error. Please try re-uploading or use a different image format.`;
+          docKind = "TEXT_PAGE";
         }
       } else {
         parsedContent = `File uploaded: ${fileData.file_name}. Format: ${fileData.file_type}`;
@@ -713,32 +734,18 @@ serve(async (req) => {
     }
 
     parsedContent = sanitizeText(parsedContent);
-    console.log("Parsed content length after sanitization:", parsedContent.length);
+    console.log("parse-document: Parsed content length after sanitization:", parsedContent.length);
 
-    // READABILITY GATE
-    const contentIsReadable = isReadableText(parsedContent);
-    console.log("isReadableText =", contentIsReadable);
-
-    if (!contentIsReadable && !needsOCR && (fileType.includes("pdf") || fileType.includes("image"))) {
-      console.log("Content unreadable, attempting OCR fallback...");
-      try {
-        const arrayBuffer = await fileBlob.arrayBuffer();
-        const ocrText = await runOCR(arrayBuffer, fileId, supabaseClient);
-        const sanitizedOCR = sanitizeText(ocrText);
-
-        if (isReadableText(sanitizedOCR)) {
-          console.log("OCR fallback succeeded");
-          parsedContent = sanitizedOCR;
-        } else {
-          console.log("OCR fallback also failed readability check");
-        }
-      } catch (ocrError) {
-        console.error("OCR fallback error:", ocrError);
-      }
+    // READABILITY GATE - use appropriate check based on mode
+    let contentIsReadable: boolean;
+    
+    if (documentMode === "vision") {
+      contentIsReadable = isVisionContentReadable(parsedContent, docKind);
+      console.log(`isVisionContentReadable = ${contentIsReadable} (docKind=${docKind})`);
+    } else {
+      contentIsReadable = isReadableText(parsedContent);
+      console.log("isReadableText =", contentIsReadable);
     }
-
-    const finalReadable = isReadableText(parsedContent);
-    console.log("Final readability =", finalReadable);
 
     // DELETE OLD CHUNKS
     const { error: deleteChunksError } = await supabaseClient.from("document_chunks").delete().eq("file_id", fileId);
@@ -749,27 +756,60 @@ serve(async (req) => {
       console.log("Cleared any existing chunks for file");
     }
 
-    // HANDLE UNREADABLE CONTENT
-    if (!finalReadable) {
-      console.log("Document unreadable - storing warning message, skipping chunks");
-
-      const warningMessage = "Document unreadable — no real text detected. Try a clearer or text-based PDF.";
+    // HANDLE UNREADABLE CONTENT - but be more lenient for images
+    if (!contentIsReadable) {
+      console.log("parse-document: Content below readability threshold");
+      
+      // For images, store whatever we got instead of a generic warning
+      let finalContent = parsedContent;
+      if (documentMode === "vision" && parsedContent.length > 20) {
+        // Keep the vision output even if short
+        finalContent = parsedContent;
+        console.log("parse-document: Keeping short vision content");
+      } else if (parsedContent.length < 20) {
+        finalContent = "Document could not be parsed. Please try a clearer image or text-based document.";
+      }
 
       await supabaseClient
         .from("uploaded_files")
-        .update({ parsed_content: warningMessage, processing: false })
+        .update({ parsed_content: finalContent, processing: false })
         .eq("id", fileId);
+
+      // Still try to create chunks if we have some content
+      if (finalContent.length >= 50) {
+        const chunks = chunkText(finalContent);
+        if (chunks.length > 0) {
+          const chunkInserts = chunks.map((chunk, index) => ({
+            file_id: fileId,
+            collection_id: fileData.collection_id,
+            user_id: fileData.user_id,
+            chunk_text: chunk,
+            embedding: null,
+            chunk_index: index,
+            metadata: { length: chunk.length, vision_mode: documentMode === "vision", doc_kind: docKind },
+          }));
+
+          const { error: insertError } = await supabaseClient.from("document_chunks").insert(chunkInserts);
+          if (!insertError) {
+            console.log(`parse-document: Inserted ${chunks.length} chunks (no embeddings) for short content`);
+          }
+        }
+      }
+
+      console.log(`parse-document: stored parsed_content length=${finalContent.length}`);
 
       return new Response(
         JSON.stringify({
           success: true,
-          parsedContent: warningMessage,
-          contentLength: warningMessage.length,
+          parsedContent: finalContent,
+          contentLength: finalContent.length,
           readable: false,
+          documentMode,
+          docKind,
           chunksCreated: 0,
           embeddingsGenerated: 0,
           chunksInserted: 0,
-          message: "Document parsed but content was unreadable. No chunks created.",
+          message: "Document parsed with limited content.",
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -777,12 +817,6 @@ serve(async (req) => {
 
     // =====================================================
     // CONTENT IS READABLE: Proceed with chunking and embeddings
-    // CRITICAL: Enforce correct pipeline order:
-    // 1. Extract text (done above)
-    // 2. Sanitize text (done above)
-    // 3. Chunk text
-    // 4. Generate embedding (REQUIRED for each chunk)
-    // 5. Insert chunk + embedding TOGETHER
     // =====================================================
 
     const MAX_LENGTH = 50000;
@@ -799,13 +833,12 @@ serve(async (req) => {
 
     // STEP 3: Chunk the content
     const chunks = chunkText(parsedContent);
-    console.log(`Created ${chunks.length} chunks from document`);
+    console.log(`parse-document: Created ${chunks.length} chunks from document`);
 
-    // STEP 4: Check if embeddings are available (one-time per invocation)
+    // STEP 4: Check if embeddings are available
     const canGenerateEmbeddings = await checkEmbeddingCapability();
     console.log("Embedding capability:", canGenerateEmbeddings ? "AVAILABLE" : "NOT AVAILABLE (skipping)");
 
-    // Prepare chunk inserts - embedding can be NULL if generation fails
     const chunkInserts: {
       file_id: string;
       collection_id: string;
@@ -828,7 +861,6 @@ serve(async (req) => {
       let embeddingErrorStatus: number | undefined;
       let embeddingErrorMessage: string | undefined;
 
-      // Only attempt embedding if gateway supports it
       if (canGenerateEmbeddings) {
         console.log(`Generating embedding for chunk ${i + 1}/${chunks.length}...`);
         try {
@@ -860,13 +892,15 @@ serve(async (req) => {
           }
         }
       } else {
-        // Embeddings not available - just mark as skipped
         embeddingFailed = true;
         embeddingErrorMessage = "Embeddings not available (gateway does not support)";
       }
 
-      // Always insert the chunk - with or without embedding
-      const metadata: Record<string, unknown> = { length: chunk.length };
+      const metadata: Record<string, unknown> = { 
+        length: chunk.length,
+        vision_mode: documentMode === "vision",
+        doc_kind: docKind,
+      };
 
       if (embeddingFailed) {
         metadata.embedding_status = "failed";
@@ -884,7 +918,6 @@ serve(async (req) => {
         collection_id: fileData.collection_id,
         user_id: fileData.user_id,
         chunk_text: chunk,
-        // Convert embedding array to Postgres vector literal string format
         embedding: embedding ? `[${embedding.join(",")}]` : null,
         chunk_index: i,
         metadata,
@@ -899,10 +932,7 @@ serve(async (req) => {
       console.log("Embedding failure samples:", embeddingFailureSamples);
     }
 
-    // NOTE: We no longer abort if embeddings fail - chunks are always stored
-    // This ensures the tutor can still work via fallback context retrieval
-
-    // Insert chunks (embeddings best-effort)
+    // Insert chunks
     let chunksInserted = 0;
     if (chunkInserts.length > 0) {
       const { error: chunkError } = await supabaseClient.from("document_chunks").insert(chunkInserts);
@@ -910,89 +940,70 @@ serve(async (req) => {
       if (chunkError) {
         console.error("Error inserting chunks:", chunkError);
 
-        // Best-effort: still persist parsed_content + processing=false even if chunk insert fails
         try {
           await supabaseClient
             .from("uploaded_files")
             .update({ parsed_content: parsedContent.substring(0, 10000), processing: false })
             .eq("id", fileId);
         } catch (e) {
-          console.error("Failed to update parsed_content after chunk insert failure:", e);
+          console.error("Failed to persist partial data:", e);
         }
 
         return new Response(
           JSON.stringify({
-            error: `Failed to insert chunks: ${chunkError.message}`,
-            chunksCreated: chunks.length,
-            embeddingsGenerated: embeddingSuccessCount,
-            embeddingsFailed: embeddingFailCount,
-            chunksInserted: 0,
+            error: `Failed to insert document chunks: ${chunkError.message}`,
+            parsedContent: parsedContent.substring(0, 500),
+            embeddingSuccessCount,
+            embeddingFailCount,
           }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
-      } else {
-        chunksInserted = chunkInserts.length;
-        console.log(`Successfully inserted ${chunksInserted} chunks (embeddings best-effort)`);
       }
+
+      chunksInserted = chunkInserts.length;
+      console.log(`Successfully inserted ${chunksInserted} chunks (embeddings best-effort)`);
     }
 
-    // Store content in parsed_content for backward compatibility
-    const summary = parsedContent.substring(0, 10000);
-
+    // Update uploaded_files with parsed content
     const { error: updateError } = await supabaseClient
       .from("uploaded_files")
-      .update({ parsed_content: summary, processing: false })
+      .update({ parsed_content: parsedContent, processing: false })
       .eq("id", fileId);
 
     if (updateError) {
-      console.error("Error updating parsed content:", updateError);
-      return new Response(
-        JSON.stringify({
-          error: `Failed to save parsed content: ${updateError.message}`,
-          details: updateError.details || "No additional details",
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      console.error("Error updating parsed_content:", updateError);
     }
 
+    console.log(`parse-document: stored parsed_content length=${parsedContent.length}, chunks created=${chunksInserted}`);
     console.log("=== PARSE-DOCUMENT COMPLETE ===");
-    console.log(`Final stats: ${chunksInserted} chunks inserted with embeddings`);
-
-    // Build response - always success if we got here
-    const responseData: Record<string, unknown> = {
-      success: true,
-      parsedContent: summary,
-      contentLength: parsedContent.length,
-      readable: true,
-      chunksCreated: chunks.length,
-      embeddingsGenerated: embeddingSuccessCount,
-      embeddingsFailed: embeddingFailCount,
-      chunksInserted: chunksInserted,
-    };
-
-    // Add warning if embeddings failed but parsing succeeded
-    if (embeddingSuccessCount === 0 && chunks.length > 0) {
-      responseData.warning = "Embeddings could not be generated (API unavailable). Semantic search will be limited, but the tutor can still use your content.";
-      responseData.embeddingFailureSamples = embeddingFailureSamples;
-      responseData.message = "Document parsed and saved. Semantic search unavailable.";
-    } else if (embeddingFailCount > 0) {
-      responseData.warning = `${embeddingFailCount} chunks have no embeddings due to API errors.`;
-      responseData.message = `Document parsed. ${embeddingFailCount} chunks without embeddings.`;
-    } else {
-      responseData.message = "Document parsed and saved successfully";
-    }
+    console.log(`Final stats: ${embeddingSuccessCount} chunks inserted with embeddings`);
 
     return new Response(
-      JSON.stringify(responseData),
+      JSON.stringify({
+        success: true,
+        parsedContent: parsedContent.substring(0, 1000),
+        contentLength: parsedContent.length,
+        readable: true,
+        documentMode,
+        docKind,
+        chunksCreated: chunks.length,
+        embeddingsGenerated: embeddingSuccessCount,
+        embeddingsFailed: embeddingFailCount,
+        chunksInserted,
+        message:
+          embeddingFailCount > 0
+            ? `Parsed and chunked. ${embeddingSuccessCount}/${chunks.length} embeddings generated.`
+            : "Document parsed, chunked, and embeddings generated successfully.",
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error("Error in parse-document function:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    console.error("=== PARSE-DOCUMENT ERROR ===");
+    console.error(error);
+
     return new Response(
       JSON.stringify({
-        error: errorMessage,
-        type: "PARSE_DOCUMENT_ERROR",
+        error: error instanceof Error ? error.message : "Unknown error during document parsing",
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
