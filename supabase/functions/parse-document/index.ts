@@ -242,22 +242,30 @@ async function analyzeDocumentWithVision(imageBase64: string): Promise<any> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
 
-  const visionPrompt = `Analyze this document image and extract structured content. Return ONLY valid JSON with this exact structure:
-{
-  "mode": "vision",
-  "sections": [{"heading": "", "content": ""}],
-  "problems": [{"number": "", "type": "", "question": "", "data": ""}],
-  "concepts": ["concept1", "concept2"],
-  "figures": [{"label": "", "meaning": ""}]
-}
+  const visionPrompt = `You are a document text extraction assistant.
+
+The user has provided an image (photo, scan, or screenshot) of a document.
+
+Your task is to extract ALL visible text from the image exactly as written.
 
 Rules:
-- Extract all text regions, headings, lists, tables
-- Identify numbered problems and their types (multiple choice, calculation, etc)
-- List key concepts or vocabulary terms
-- Describe any diagrams, charts, or labeled figures
-- Be concise and structured
-- Return ONLY the JSON, no markdown or explanatory text`;
+- Do NOT summarize
+- Do NOT explain
+- Do NOT add commentary
+- Do NOT guess missing text
+- Do NOT refuse
+- Do NOT say "not enough information"
+
+Formatting:
+- Output plain text only
+- Preserve headings, paragraphs, lists, formulas, and tables
+- Keep math symbols, units, and punctuation exactly as shown
+- Separate paragraphs with a blank line
+- Keep question/answer formatting if present
+
+If some text is unclear, extract what IS visible and continue.
+
+Return ONLY the extracted text.`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -279,7 +287,7 @@ Rules:
           ],
         },
       ],
-      max_tokens: 4000,
+      max_tokens: 8000,
     }),
   });
 
@@ -288,30 +296,16 @@ Rules:
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "{}";
+  const content = data.choices?.[0]?.message?.content || "";
 
-  // Clean and parse JSON response - with safe fallback
-  let cleanContent = content.trim();
-  if (cleanContent.startsWith("```json")) {
-    cleanContent = cleanContent.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-  }
-  if (cleanContent.startsWith("```")) {
-    cleanContent = cleanContent.replace(/```\n?/g, "");
-  }
-
-  try {
-    return JSON.parse(cleanContent);
-  } catch (parseError) {
-    console.error("Vision JSON parse failed, returning text as content:", parseError);
-    // Return the raw text as a section instead of crashing
-    return {
-      mode: "vision",
-      sections: [{ heading: "Extracted Content", content: cleanContent }],
-      concepts: [],
-      problems: [],
-      figures: [],
-    };
-  }
+  // Return as plain text structure for consistency with rest of pipeline
+  return {
+    mode: "vision",
+    sections: [{ heading: "", content: content.trim() }],
+    concepts: [],
+    problems: [],
+    figures: [],
+  };
 }
 
 // Detect document type (text-based vs image-based)
