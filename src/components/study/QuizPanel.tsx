@@ -20,6 +20,7 @@ interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: number;
+  explanation: string;
 }
 
 export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }: QuizPanelProps) => {
@@ -103,9 +104,12 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
         }
       }
 
-      // Length validation
-      if (generatedText.length > 5000) {
-        toast.error('Quiz could not be generated because the source material was too complex or formatted incorrectly.');
+      // Log raw AI output for debugging
+      console.log('Quiz raw AI output:', generatedText);
+
+      // Length validation (increased to 25000)
+      if (generatedText.length > 25000) {
+        toast.error('Quiz response too large. Please try with simpler content.');
         setIsGenerating(false);
         return;
       }
@@ -116,17 +120,50 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
         const sanitized = sanitizeJSON(generatedText);
         parsedQuestions = JSON.parse(sanitized);
       } catch (cleanupError) {
-        toast.error('Quiz could not be generated because the source material was too complex or formatted incorrectly.');
+        console.error('Quiz JSON parse error:', cleanupError, 'Raw:', generatedText.substring(0, 500));
+        toast.error('Quiz could not be generated. Please try again.');
         setIsGenerating(false);
         return;
       }
 
       // Validate structure
       if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-        toast.error('Quiz could not be generated because the source material was too complex or formatted incorrectly.');
+        console.error('Quiz validation failed: not an array or empty');
+        toast.error('Quiz generation returned invalid format. Please try again.');
         setIsGenerating(false);
         return;
       }
+
+      // Validate each question
+      const validQuestions = parsedQuestions.filter((q, idx) => {
+        if (!q.question || typeof q.question !== 'string') {
+          console.warn(`Question ${idx}: missing question text`);
+          return false;
+        }
+        if (!Array.isArray(q.options) || q.options.length !== 4) {
+          console.warn(`Question ${idx}: options must be array of 4`);
+          return false;
+        }
+        if (typeof q.correctAnswer !== 'number' || q.correctAnswer < 0 || q.correctAnswer > 3) {
+          console.warn(`Question ${idx}: correctAnswer must be 0-3`);
+          return false;
+        }
+        if (!q.explanation || typeof q.explanation !== 'string') {
+          console.warn(`Question ${idx}: missing explanation`);
+          // Still allow it but provide default
+          q.explanation = 'No explanation provided.';
+        }
+        return true;
+      });
+
+      if (validQuestions.length === 0) {
+        console.error('Quiz validation failed: no valid questions after filtering');
+        toast.error('Quiz generation failed validation. Please try again.');
+        setIsGenerating(false);
+        return;
+      }
+
+      parsedQuestions = validQuestions;
 
       setQuestions(parsedQuestions);
       setCurrentIndex(0);
@@ -296,6 +333,13 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
               </div>
             ))}
           </RadioGroup>
+
+          {isChecked && currentQuestion.explanation && (
+            <div className={`p-4 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'}`}>
+              <p className="text-sm font-medium mb-1">{isCorrect ? 'Correct!' : 'Incorrect'}</p>
+              <p className="text-sm text-muted-foreground">{currentQuestion.explanation}</p>
+            </div>
+          )}
 
           <div className="flex gap-2 justify-end">
             {!isChecked ? (
