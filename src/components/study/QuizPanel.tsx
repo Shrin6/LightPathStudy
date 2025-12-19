@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
@@ -34,64 +34,69 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
 
   const sanitizeJSON = (text: string): string => {
     // Remove markdown code blocks
-    let cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    let cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "");
     // Remove any text before first [ and after last ]
     const match = cleaned.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error('No JSON array found');
+    if (!match) throw new Error("No JSON array found");
     return match[0];
   };
 
   const generateQuiz = async () => {
     if (!collectionId || collectionContent.length < 300) {
-      toast.error('Not enough content to generate quiz');
+      toast.error("Not enough content to generate quiz");
       return;
     }
 
     setIsGenerating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        toast.error('You must be logged in');
+        toast.error("You must be logged in");
         return;
       }
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-tutor`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          messages: [{ 
-            role: 'user', 
-            content: 'Generate 5 multiple-choice quiz questions. Return ONLY valid JSON array: [{"question":"Q1","options":["A","B","C","D"],"correctAnswer":0}]. correctAnswer is index 0-3.' 
-          }],
-          mode: 'quiz',
+          messages: [
+            {
+              role: "user",
+              content:
+                'Generate 5 multiple-choice quiz questions. Return ONLY valid JSON array: [{"question":"Q1","options":["A","B","C","D"],"correctAnswer":0}]. correctAnswer is index 0-3.',
+            },
+          ],
+          mode: "quiz",
           collectionId,
           notes: collectionContent,
           document_type_hint: documentTypeHint,
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to generate quiz');
+      if (!response.ok) throw new Error("Failed to generate quiz");
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
+      if (!reader) throw new Error("No response stream");
 
       const decoder = new TextDecoder();
-      let generatedText = '';
+      let generatedText = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        const lines = chunk.split("\n");
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith("data: ")) {
             const data = line.slice(6);
-            if (data === '[DONE]') continue;
+            if (data === "[DONE]") continue;
 
             try {
               const parsed = JSON.parse(data);
@@ -103,13 +108,27 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
           }
         }
       }
+      // ---- POST-STREAM NORMALIZATION ----
+      generatedText = generatedText
+        .replace(/```json\s*/gi, "")
+        .replace(/```\s*/g, "")
+        .trim();
+
+      // If model accidentally returned a single object, wrap it
+      if (generatedText.startsWith("{") && !generatedText.startsWith("[")) {
+        // Try to extract multiple objects and wrap them
+        const objects = generatedText.match(/\{[\s\S]*?\}/g);
+        if (objects && objects.length > 0) {
+          generatedText = `[${objects.join(",")}]`;
+        }
+      }
 
       // Log raw AI output for debugging
-      console.log('Quiz raw AI output:', generatedText);
+      console.log("Quiz raw AI output:", generatedText);
 
       // Length validation (increased to 25000)
       if (generatedText.length > 25000) {
-        toast.error('Quiz response too large. Please try with simpler content.');
+        toast.error("Quiz response too large. Please try with simpler content.");
         setIsGenerating(false);
         return;
       }
@@ -120,23 +139,23 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
         const sanitized = sanitizeJSON(generatedText);
         parsedQuestions = JSON.parse(sanitized);
       } catch (cleanupError) {
-        console.error('Quiz JSON parse error:', cleanupError, 'Raw:', generatedText.substring(0, 500));
-        toast.error('Quiz could not be generated. Please try again.');
+        console.error("Quiz JSON parse error:", cleanupError, "Raw:", generatedText.substring(0, 500));
+        toast.error("Quiz could not be generated. Please try again.");
         setIsGenerating(false);
         return;
       }
 
       // Validate structure
       if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-        console.error('Quiz validation failed: not an array or empty');
-        toast.error('Quiz generation returned invalid format. Please try again.');
+        console.error("Quiz validation failed: not an array or empty");
+        toast.error("Quiz generation returned invalid format. Please try again.");
         setIsGenerating(false);
         return;
       }
 
       // Validate each question
       const validQuestions = parsedQuestions.filter((q, idx) => {
-        if (!q.question || typeof q.question !== 'string') {
+        if (!q.question || typeof q.question !== "string") {
           console.warn(`Question ${idx}: missing question text`);
           return false;
         }
@@ -144,21 +163,21 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
           console.warn(`Question ${idx}: options must be array of 4`);
           return false;
         }
-        if (typeof q.correctAnswer !== 'number' || q.correctAnswer < 0 || q.correctAnswer > 3) {
+        if (typeof q.correctAnswer !== "number" || q.correctAnswer < 0 || q.correctAnswer > 3) {
           console.warn(`Question ${idx}: correctAnswer must be 0-3`);
           return false;
         }
-        if (!q.explanation || typeof q.explanation !== 'string') {
+        if (!q.explanation || typeof q.explanation !== "string") {
           console.warn(`Question ${idx}: missing explanation`);
           // Still allow it but provide default
-          q.explanation = 'No explanation provided.';
+          q.explanation = "No explanation provided.";
         }
         return true;
       });
 
       if (validQuestions.length === 0) {
-        console.error('Quiz validation failed: no valid questions after filtering');
-        toast.error('Quiz generation failed validation. Please try again.');
+        console.error("Quiz validation failed: no valid questions after filtering");
+        toast.error("Quiz generation failed validation. Please try again.");
         setIsGenerating(false);
         return;
       }
@@ -169,10 +188,10 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       setCurrentIndex(0);
       setScore(0);
       setQuizComplete(false);
-      toast.success('Quiz generated!');
+      toast.success("Quiz generated!");
     } catch (error: any) {
-      console.error('Error generating quiz:', error);
-      toast.error('Quiz could not be generated because the source material was too complex or formatted incorrectly.');
+      console.error("Error generating quiz:", error);
+      toast.error("Quiz could not be generated because the source material was too complex or formatted incorrectly.");
     } finally {
       setIsGenerating(false);
     }
@@ -180,16 +199,16 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
 
   const handleCheckAnswer = () => {
     if (selectedAnswer === null) {
-      toast.error('Please select an answer');
+      toast.error("Please select an answer");
       return;
     }
 
     const currentQuestion = questions[currentIndex];
     if (selectedAnswer === currentQuestion.correctAnswer) {
       setScore(score + 1);
-      toast.success('Correct!');
+      toast.success("Correct!");
     } else {
-      toast.error('Incorrect');
+      toast.error("Incorrect");
     }
     setIsChecked(true);
   };
@@ -207,28 +226,28 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
 
   const saveScore = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user || !collectionId) return;
 
       const percentage = Math.round((score / questions.length) * 100);
-      
-      // Save to study_sessions as a quiz record
-      await supabase
-        .from('study_sessions')
-        .insert({
-          user_id: user.id,
-          collection_id: collectionId,
-          mode: 'quiz',
-          conversation_history: {
-            score: percentage,
-            total: questions.length,
-            correct: score,
-          },
-        });
 
-      toast.success('Quiz score saved!');
+      // Save to study_sessions as a quiz record
+      await supabase.from("study_sessions").insert({
+        user_id: user.id,
+        collection_id: collectionId,
+        mode: "quiz",
+        conversation_history: {
+          score: percentage,
+          total: questions.length,
+          correct: score,
+        },
+      });
+
+      toast.success("Quiz score saved!");
     } catch (error) {
-      console.error('Error saving score:', error);
+      console.error("Error saving score:", error);
     }
   };
 
@@ -255,7 +274,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
           <p className="text-muted-foreground">No quiz yet</p>
           <Button onClick={generateQuiz} disabled={isGenerating}>
             {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isGenerating ? 'Generating...' : 'Generate Quiz'}
+            {isGenerating ? "Generating..." : "Generate Quiz"}
           </Button>
         </div>
       </div>
@@ -297,8 +316,12 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Question {currentIndex + 1} of {questions.length}</CardTitle>
-            <div className="text-sm text-muted-foreground">Score: {score}/{currentIndex}</div>
+            <CardTitle>
+              Question {currentIndex + 1} of {questions.length}
+            </CardTitle>
+            <div className="text-sm text-muted-foreground">
+              Score: {score}/{currentIndex}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -307,19 +330,15 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
           <RadioGroup value={selectedAnswer?.toString()} onValueChange={(val) => setSelectedAnswer(parseInt(val))}>
             {currentQuestion.options.map((option, idx) => (
               <div key={idx} className="flex items-center space-x-2">
-                <RadioGroupItem 
-                  value={idx.toString()} 
-                  id={`option-${idx}`}
-                  disabled={isChecked}
-                />
-                <Label 
+                <RadioGroupItem value={idx.toString()} id={`option-${idx}`} disabled={isChecked} />
+                <Label
                   htmlFor={`option-${idx}`}
                   className={`flex-1 cursor-pointer ${
-                    isChecked && idx === currentQuestion.correctAnswer 
-                      ? 'text-green-600 font-semibold' 
-                      : isChecked && idx === selectedAnswer 
-                      ? 'text-red-600' 
-                      : ''
+                    isChecked && idx === currentQuestion.correctAnswer
+                      ? "text-green-600 font-semibold"
+                      : isChecked && idx === selectedAnswer
+                        ? "text-red-600"
+                        : ""
                   }`}
                 >
                   {option}
@@ -335,8 +354,10 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
           </RadioGroup>
 
           {isChecked && currentQuestion.explanation && (
-            <div className={`p-4 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'}`}>
-              <p className="text-sm font-medium mb-1">{isCorrect ? 'Correct!' : 'Incorrect'}</p>
+            <div
+              className={`p-4 rounded-lg border ${isCorrect ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800" : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"}`}
+            >
+              <p className="text-sm font-medium mb-1">{isCorrect ? "Correct!" : "Incorrect"}</p>
               <p className="text-sm text-muted-foreground">{currentQuestion.explanation}</p>
             </div>
           )}
@@ -346,7 +367,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
               <Button onClick={handleCheckAnswer}>Check Answer</Button>
             ) : (
               <Button onClick={handleNext}>
-                {currentIndex < questions.length - 1 ? 'Next Question' : 'Finish Quiz'}
+                {currentIndex < questions.length - 1 ? "Next Question" : "Finish Quiz"}
               </Button>
             )}
           </div>
