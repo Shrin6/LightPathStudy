@@ -88,6 +88,83 @@ function sanitizeQuizJson(raw: string): Array<{question: string; options: string
   }
 }
 
+// Helper: Sanitize worksheet JSON output from AI
+interface WorksheetQuestion {
+  id: string;
+  type: string;
+  prompt: string;
+  choices?: string[];
+  answer: string;
+  explanation: string;
+  source_ref?: string;
+}
+
+interface WorksheetResponse {
+  set_id: string;
+  topic_focus: string;
+  questions: WorksheetQuestion[];
+}
+
+function sanitizeWorksheetJson(raw: string): WorksheetResponse | null {
+  try {
+    let text = raw.trim();
+    console.log('sanitizeWorksheetJson: raw length:', text.length);
+    
+    // Remove markdown code fences
+    text = text.replace(/^```(?:json)?\s*/gi, '').replace(/\s*```$/gi, '');
+    text = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '');
+    text = text.trim();
+    
+    // Find first { and last }
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      text = text.substring(firstBrace, lastBrace + 1);
+    }
+    
+    // Parse
+    const parsed = JSON.parse(text);
+    
+    // Check for questions array
+    if (!parsed.questions || !Array.isArray(parsed.questions)) {
+      console.log('sanitizeWorksheetJson: No questions array found');
+      return null;
+    }
+    
+    // Filter valid questions (salvage what we can)
+    const validQuestions: WorksheetQuestion[] = [];
+    for (const q of parsed.questions) {
+      if (typeof q.prompt === 'string' && q.prompt.length > 5 && typeof q.type === 'string') {
+        validQuestions.push({
+          id: q.id || `q${validQuestions.length + 1}`,
+          type: q.type || 'short',
+          prompt: q.prompt,
+          choices: Array.isArray(q.choices) ? q.choices : undefined,
+          answer: String(q.answer || ''),
+          explanation: q.explanation || '',
+          source_ref: q.source_ref || undefined
+        });
+      }
+    }
+    
+    console.log('sanitizeWorksheetJson: salvaged', validQuestions.length, 'valid questions');
+    
+    if (validQuestions.length < 5) {
+      console.log('sanitizeWorksheetJson: Less than 5 valid questions');
+      return null;
+    }
+    
+    return {
+      set_id: parsed.set_id || crypto.randomUUID(),
+      topic_focus: parsed.topic_focus || '',
+      questions: validQuestions
+    };
+  } catch (e) {
+    console.log('sanitizeWorksheetJson: Parse error:', e);
+    return null;
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -346,9 +423,62 @@ When given a list of terms or steps (e.g., Prophase, Metaphase, Anaphase, Teloph
 
 Make mnemonics fun, silly, and easy to remember. Use short sentences. Ask if they want alternatives or different memory tricks.
   `,
-  worksheet: `
-You are in WORKSHEET MODE. You are a real human tutor helping create practice materials. Create practice worksheets with fill-in-the-blank, matching, short answer, and practice problems based strictly on the user's uploaded content. Speak warmly and supportively.
-  `,
+  worksheet: `You are in WORKSHEET MODE.
+
+CRITICAL: Your response must be ONLY a raw JSON object. Nothing else.
+- No markdown, no \`\`\`, no prose, no explanations outside JSON
+- Start with { and end with }
+
+EXACT SCHEMA:
+{
+  "set_id": "unique-string",
+  "topic_focus": "the topic if provided, or empty string",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "Which equation is balanced?",
+      "choices": ["2H2 + O2 → 2H2O", "H2 + O2 → H2O", "H + O → H2O", "2H + O → H2O"],
+      "answer": "2H2 + O2 → 2H2O",
+      "explanation": "This equation has 4 H atoms and 2 O atoms on both sides.",
+      "source_ref": "balancing equations section"
+    },
+    {
+      "id": "q2",
+      "type": "calc",
+      "prompt": "Calculate the molar mass of H2O.",
+      "answer": "18.02 g/mol",
+      "explanation": "H=1.01×2 + O=16.00 = 18.02 g/mol"
+    },
+    {
+      "id": "q3",
+      "type": "fill_blank",
+      "prompt": "The limiting reactant is the reactant that is completely _____ first.",
+      "answer": "consumed",
+      "explanation": "The limiting reactant determines how much product can form."
+    },
+    {
+      "id": "q4",
+      "type": "short",
+      "prompt": "Explain what limiting reactant means.",
+      "answer": "The reactant that runs out first and limits product formation.",
+      "explanation": "Once the limiting reactant is gone, no more product can form."
+    }
+  ]
+}
+
+RULES:
+- Generate EXACTLY the number of questions requested (default 20)
+- type must be one of: "mcq", "short", "calc", "fill_blank"
+- For mcq: include exactly 4 choices
+- For calc: include realistic numbers requiring calculation
+- answer: the correct answer
+- explanation: 1-3 sentences explaining why (required)
+- source_ref: optional short quote from the notes
+- If topic_focus provided, prioritize that topic
+- Base questions on the provided study materials
+- DO NOT include any text before { or after }
+`,
   notes: `
 You are in SIMPLE NOTES MODE. You are a real human tutor helping organize study materials. Convert the user's uploaded materials into clean, bullet-point notes with only the key facts. Keep it concise and organized. Speak warmly and supportively.
   `,
@@ -383,7 +513,7 @@ serve(async (req) => {
       );
     }
 
-    const { messages, mode, collectionId, notes, model: clientModel, document_type_hint } = requestBody;
+    const { messages, mode, collectionId, notes, model: clientModel, document_type_hint, worksheet_mode, topic_focus, question_count } = requestBody;
     
     // PRE-FLIGHT: Validate required fields
     if (!messages || !Array.isArray(messages)) {
@@ -775,6 +905,121 @@ ${collectionContext}
       // Return as SSE stream format for frontend compatibility
       const encoder = new TextEncoder();
       const jsonString = JSON.stringify(sanitizedJson);
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":${JSON.stringify(jsonString)}}}]}\n\n`));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      return new Response(stream, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
+      });
+    }
+
+    // WORKSHEET MODE: Non-streaming with JSON sanitization
+    if (mode === 'worksheet') {
+      const wsMode = worksheet_mode || 'onsite';
+      const wsTopicFocus = topic_focus || '';
+      const wsQuestionCount = question_count || 20;
+      
+      console.log('chat-tutor: Worksheet mode -', wsMode, 'topic:', wsTopicFocus, 'count:', wsQuestionCount);
+      
+      // Build worksheet-specific user message
+      const worksheetUserMessage = {
+        role: 'user',
+        content: `Generate a worksheet with EXACTLY ${wsQuestionCount} practice questions.${wsTopicFocus ? ` Focus on: ${wsTopicFocus}` : ''} 
+Return ONLY the JSON object with set_id, topic_focus, and questions array. No markdown, no backticks.`
+      };
+      
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: fullSystemPrompt },
+            worksheetUserMessage,
+          ],
+          stream: false,
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: 'AI credits exhausted. Please add credits to your workspace.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const errorText = await response.text();
+        console.error('AI gateway error:', response.status, errorText);
+        return new Response(
+          JSON.stringify({ error: 'AI service unavailable. Please try again.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const data = await response.json();
+      let rawContent = data.choices?.[0]?.message?.content || '';
+      console.log('chat-tutor: Worksheet raw output length:', rawContent.length);
+      console.log('chat-tutor: Worksheet raw output preview:', rawContent.substring(0, 400));
+
+      // Sanitize worksheet JSON
+      let sanitizedWorksheet = sanitizeWorksheetJson(rawContent);
+      
+      if (!sanitizedWorksheet) {
+        console.log('chat-tutor: First worksheet sanitization failed, retrying with correction prompt');
+        // Retry once with correction prompt
+        const retryResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: [
+              { role: 'system', content: fullSystemPrompt },
+              worksheetUserMessage,
+              { role: 'assistant', content: rawContent },
+              { role: 'user', content: 'Your last output was invalid JSON. Return ONLY the JSON object with set_id, topic_focus, and questions array. Start with { and end with }. No markdown, no backticks, no extra text.' }
+            ],
+            stream: false,
+          }),
+        });
+
+        if (retryResponse.ok) {
+          const retryData = await retryResponse.json();
+          rawContent = retryData.choices?.[0]?.message?.content || '';
+          console.log('chat-tutor: Worksheet retry output:', rawContent.substring(0, 400));
+          sanitizedWorksheet = sanitizeWorksheetJson(rawContent);
+        }
+      }
+
+      if (!sanitizedWorksheet) {
+        console.error('chat-tutor: Worksheet JSON sanitization failed after retry');
+        return new Response(
+          JSON.stringify({ error: 'Worksheet generation failed. Please try again.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('chat-tutor: Worksheet sanitized successfully, questions:', sanitizedWorksheet.questions.length);
+
+      // Return as SSE stream format for frontend compatibility
+      const encoder = new TextEncoder();
+      const jsonString = JSON.stringify(sanitizedWorksheet);
       const stream = new ReadableStream({
         start(controller) {
           controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":${JSON.stringify(jsonString)}}}]}\n\n`));
