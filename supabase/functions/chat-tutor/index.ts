@@ -24,6 +24,70 @@ function createMockStreamResponse(jsonData: object): ReadableStream {
   });
 }
 
+// Helper: Sanitize quiz JSON output from AI
+function sanitizeQuizJson(raw: string): Array<{question: string; options: string[]; correctAnswer: number; explanation: string}> | null {
+  try {
+    let text = raw.trim();
+    
+    // Remove markdown code fences
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    text = text.trim();
+    
+    // If starts with { and contains multiple question objects, try to extract array
+    if (text.startsWith('{')) {
+      // Try to find array pattern within
+      const arrayMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (arrayMatch) {
+        text = arrayMatch[0];
+      } else {
+        // Wrap single object in array
+        const objects = text.match(/\{[^{}]*"question"[^{}]*\}/g);
+        if (objects && objects.length > 0) {
+          text = '[' + objects.join(',') + ']';
+        }
+      }
+    }
+    
+    // Find the first [ and last ]
+    const firstBracket = text.indexOf('[');
+    const lastBracket = text.lastIndexOf(']');
+    if (firstBracket !== -1 && lastBracket > firstBracket) {
+      text = text.substring(firstBracket, lastBracket + 1);
+    }
+    
+    // Parse
+    const parsed = JSON.parse(text);
+    
+    // Validate structure
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      console.log('sanitizeQuizJson: Not an array or empty');
+      return null;
+    }
+    
+    // Validate each question
+    const valid = parsed.every((q: any) => 
+      typeof q.question === 'string' &&
+      Array.isArray(q.options) &&
+      q.options.length === 4 &&
+      typeof q.correctAnswer === 'number' &&
+      q.correctAnswer >= 0 &&
+      q.correctAnswer <= 3 &&
+      typeof q.explanation === 'string' &&
+      q.explanation.length > 0
+    );
+    
+    if (!valid) {
+      console.log('sanitizeQuizJson: Invalid question structure');
+      return null;
+    }
+    
+    return parsed;
+  } catch (e) {
+    console.log('sanitizeQuizJson: Parse error:', e);
+    return null;
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -229,28 +293,30 @@ const MODE_PROMPTS: Record<string, string> = {
   explain: `
 You are in EXPLAIN MODE. You are a real human tutor. Speak warmly, supportively, like a teacher explaining to a student. Break down complex topics into simple, digestible steps. Use short sentences, beginner-friendly language, and provide clear examples from the user's notes. If the user asks to repeat or slow down, adjust your pace and simplify further. Ask clarifying questions to ensure understanding.
   `,
-  quiz: `
-You are in QUIZ MODE. Generate a multiple-choice quiz from the user's study materials.
+  quiz: `You are in QUIZ MODE.
 
-OUTPUT FORMAT: Return ONLY a raw JSON array. No wrapper object. No markdown. No code fences. No extra text.
+CRITICAL: Your response must be ONLY a raw JSON array. Nothing else.
+- Start with [ and end with ]
+- No markdown, no \`\`\`, no prose, no explanations outside JSON
+- No wrapper object - just the array directly
 
+EXACT SCHEMA (5 objects):
 [
-  {
-    "question": "Clear question text here?",
-    "options": ["Option A", "Option B", "Option C", "Option D"],
-    "correctAnswer": 0,
-    "explanation": "Why the correct answer is right, and briefly why the others are wrong."
-  }
+  {"question":"...","options":["A","B","C","D"],"correctAnswer":0,"explanation":"..."},
+  {"question":"...","options":["A","B","C","D"],"correctAnswer":1,"explanation":"..."},
+  {"question":"...","options":["A","B","C","D"],"correctAnswer":2,"explanation":"..."},
+  {"question":"...","options":["A","B","C","D"],"correctAnswer":0,"explanation":"..."},
+  {"question":"...","options":["A","B","C","D"],"correctAnswer":3,"explanation":"..."}
 ]
 
 RULES:
-- Generate EXACTLY 5 questions
-- Each question has EXACTLY 4 options
-- correctAnswer is an integer 0-3 (index of correct option)
-- explanation MUST explain why the correct answer is correct AND briefly mention why each wrong answer is incorrect
-- ALL content must come from the provided study materials
-- Output ONLY the JSON array - no other text before or after
-  `,
+- EXACTLY 5 question objects in the array
+- EXACTLY 4 strings in each options array
+- correctAnswer is integer 0, 1, 2, or 3
+- explanation: 1-3 sentences explaining why correct is right and others wrong
+- Base questions on the provided study materials
+- DO NOT include any text before [ or after ]
+`,
   flashcards: `
 You are in FLASHCARDS MODE. Generate study flashcards from the user's uploaded notes.
 
@@ -618,6 +684,111 @@ ${collectionContext}
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
     
+    // QUIZ MODE: Non-streaming with JSON sanitization
+    if (mode === 'quiz') {
+      console.log('chat-tutor: Quiz mode - using non-streaming with JSON sanitization');
+      
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            { role: 'system', content: fullSystemPrompt },
+            ...messages,
+          ],
+          stream: false,
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: 'AI credits exhausted. Please add credits to your workspace.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const errorText = await response.text();
+        console.error('AI gateway error:', response.status, errorText);
+        return new Response(
+          JSON.stringify({ error: 'AI service unavailable. Please try again.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const data = await response.json();
+      let rawContent = data.choices?.[0]?.message?.content || '';
+      console.log('chat-tutor: Quiz raw output length:', rawContent.length);
+      console.log('chat-tutor: Quiz raw output preview:', rawContent.substring(0, 300));
+
+      // Sanitize quiz JSON
+      let sanitizedJson = sanitizeQuizJson(rawContent);
+      
+      if (!sanitizedJson) {
+        console.log('chat-tutor: First sanitization failed, retrying with correction prompt');
+        // Retry once with correction prompt
+        const retryResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: [
+              { role: 'system', content: fullSystemPrompt },
+              ...messages,
+              { role: 'assistant', content: rawContent },
+              { role: 'user', content: 'Your last output was invalid JSON. Return ONLY the JSON array with 5 quiz questions. Start with [ and end with ]. No markdown, no backticks, no extra text.' }
+            ],
+            stream: false,
+          }),
+        });
+
+        if (retryResponse.ok) {
+          const retryData = await retryResponse.json();
+          rawContent = retryData.choices?.[0]?.message?.content || '';
+          console.log('chat-tutor: Quiz retry output:', rawContent.substring(0, 300));
+          sanitizedJson = sanitizeQuizJson(rawContent);
+        }
+      }
+
+      if (!sanitizedJson) {
+        console.error('chat-tutor: Quiz JSON sanitization failed after retry');
+        return new Response(
+          JSON.stringify({ error: 'Quiz generation failed. Please try again.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('chat-tutor: Quiz sanitized successfully, questions:', sanitizedJson.length);
+
+      // Return as SSE stream format for frontend compatibility
+      const encoder = new TextEncoder();
+      const jsonString = JSON.stringify(sanitizedJson);
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":${JSON.stringify(jsonString)}}}]}\n\n`));
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        }
+      });
+
+      return new Response(stream, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },
+      });
+    }
+    
+    // ALL OTHER MODES: Streaming
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -643,30 +814,7 @@ ${collectionContext}
         
         let mockData: object;
         
-        if (mode === 'quiz') {
-          mockData = {
-            questions: [
-              {
-                question: "What is the first phase of mitosis?",
-                answers: ["Prophase", "Metaphase", "Anaphase", "Telophase"],
-                correct: "A",
-                explanation: "Prophase is the first stage where chromosomes condense and the nuclear envelope begins to break down."
-              },
-              {
-                question: "Which enzyme unwinds DNA during replication?",
-                answers: ["DNA polymerase", "Helicase", "Ligase", "Primase"],
-                correct: "B",
-                explanation: "Helicase unwinds the DNA double helix by breaking hydrogen bonds between base pairs."
-              },
-              {
-                question: "How many chromosomes do humans have?",
-                answers: ["23", "44", "46", "48"],
-                correct: "C",
-                explanation: "Humans have 46 chromosomes, organized as 23 pairs."
-              }
-            ]
-          };
-        } else if (mode === 'flashcards') {
+        if (mode === 'flashcards') {
           mockData = {
             cards: [
               { front: "Mitosis", back: "Cell division that produces two identical daughter cells" },
