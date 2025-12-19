@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
@@ -17,28 +19,116 @@ interface QuizPanelProps {
 }
 
 interface QuizQuestion {
+  id?: string;
   question: string;
   options: string[];
   correctAnswer: number;
-  explanation: string;
+  explanation_correct: string;
+  memory_hook: string;
+  skill_tag: string;
 }
+
+interface SkillMastery {
+  correct: number;
+  wrong: number;
+  idk: number;
+  total: number;
+}
+
+const sanitizeQuizJSON = (text: string): QuizQuestion[] | null => {
+  try {
+    let cleaned = text.trim();
+    cleaned = cleaned.replace(/```json\s*/gi, "").replace(/```\s*/g, "");
+    cleaned = cleaned.trim();
+
+    // Handle object wrapper
+    if (cleaned.startsWith("{")) {
+      const arrayMatch = cleaned.match(/\[\s*\{[\s\S]*\}\s*\]/);
+      if (arrayMatch) {
+        cleaned = arrayMatch[0];
+      }
+    }
+
+    // Extract array
+    const firstBracket = cleaned.indexOf("[");
+    const lastBracket = cleaned.lastIndexOf("]");
+    if (firstBracket === -1 || lastBracket <= firstBracket) return null;
+    cleaned = cleaned.substring(firstBracket, lastBracket + 1);
+
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+    // Salvage valid questions
+    const valid: QuizQuestion[] = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const q = parsed[i];
+      if (
+        typeof q.question === "string" &&
+        Array.isArray(q.options) &&
+        q.options.length === 4 &&
+        typeof q.correctAnswer === "number" &&
+        q.correctAnswer >= 0 &&
+        q.correctAnswer <= 3
+      ) {
+        valid.push({
+          id: q.id || `q${i + 1}`,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation_correct: q.explanation_correct || q.explanation || "This is the correct answer.",
+          memory_hook: q.memory_hook || "",
+          skill_tag: q.skill_tag || "general"
+        });
+      }
+    }
+
+    console.log("Quiz parsing: salvaged", valid.length, "valid questions");
+    return valid.length >= 3 ? valid : null;
+  } catch (e) {
+    console.error("Quiz JSON parse error:", e);
+    return null;
+  }
+};
 
 export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }: QuizPanelProps) => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isChecked, setIsChecked] = useState(false);
+  const [usedIdk, setUsedIdk] = useState(false);
   const [score, setScore] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [quizComplete, setQuizComplete] = useState(false);
+  const [masteryBySkill, setMasteryBySkill] = useState<Record<string, SkillMastery>>({});
+  const [showProgress, setShowProgress] = useState(false);
 
-  const sanitizeJSON = (text: string): string => {
-    // Remove markdown code blocks
-    let cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-    // Remove any text before first [ and after last ]
-    const match = cleaned.match(/\[[\s\S]*\]/);
-    if (!match) throw new Error("No JSON array found");
-    return match[0];
+  const updateMastery = (skillTag: string, outcome: "correct" | "wrong" | "idk") => {
+    setMasteryBySkill(prev => {
+      const current = prev[skillTag] || { correct: 0, wrong: 0, idk: 0, total: 0 };
+      return {
+        ...prev,
+        [skillTag]: {
+          correct: current.correct + (outcome === "correct" ? 1 : 0),
+          wrong: current.wrong + (outcome === "wrong" ? 1 : 0),
+          idk: current.idk + (outcome === "idk" ? 1 : 0),
+          total: current.total + 1
+        }
+      };
+    });
+  };
+
+  const getOverallMastery = (): number => {
+    const skills = Object.values(masteryBySkill);
+    if (skills.length === 0) return 0;
+    const avg = skills.reduce((sum, s) => sum + (s.correct / Math.max(s.total, 1)), 0) / skills.length;
+    return Math.round(avg * 100);
+  };
+
+  const getSkillIcon = (skill: SkillMastery) => {
+    const pct = (skill.correct / Math.max(skill.total, 1)) * 100;
+    if (pct >= 80) return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    if (pct >= 50) return <HelpCircle className="h-4 w-4 text-yellow-500" />;
+    return <XCircle className="h-4 w-4 text-red-500" />;
   };
 
   const generateQuiz = async () => {
@@ -49,9 +139,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
 
     setIsGenerating(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         toast.error("You must be logged in");
         return;
@@ -64,13 +152,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          messages: [
-            {
-              role: "user",
-              content:
-                'Generate 5 multiple-choice quiz questions. Return ONLY valid JSON array: [{"question":"Q1","options":["A","B","C","D"],"correctAnswer":0}]. correctAnswer is index 0-3.',
-            },
-          ],
+          messages: [{ role: "user", content: "Generate 5 multiple-choice quiz questions." }],
           mode: "quiz",
           collectionId,
           notes: collectionContent,
@@ -89,109 +171,37 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
+        for (const line of chunk.split("\n")) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6);
             if (data === "[DONE]") continue;
-
             try {
               const parsed = JSON.parse(data);
               const content = parsed.choices?.[0]?.delta?.content;
               if (content) generatedText += content;
-            } catch (e) {
-              // Ignore parse errors
-            }
+            } catch {}
           }
         }
       }
-      // ---- POST-STREAM NORMALIZATION ----
-      generatedText = generatedText
-        .replace(/```json\s*/gi, "")
-        .replace(/```\s*/g, "")
-        .trim();
 
-      // If model accidentally returned a single object, wrap it
-      if (generatedText.startsWith("{") && !generatedText.startsWith("[")) {
-        // Try to extract multiple objects and wrap them
-        const objects = generatedText.match(/\{[\s\S]*?\}/g);
-        if (objects && objects.length > 0) {
-          generatedText = `[${objects.join(",")}]`;
-        }
-      }
+      console.log("Quiz raw AI output:", generatedText.substring(0, 500));
 
-      // Log raw AI output for debugging
-      console.log("Quiz raw AI output:", generatedText);
-
-      // Length validation (increased to 25000)
-      if (generatedText.length > 25000) {
-        toast.error("Quiz response too large. Please try with simpler content.");
-        setIsGenerating(false);
+      const parsedQuestions = sanitizeQuizJSON(generatedText);
+      if (!parsedQuestions) {
+        toast.error("Quiz generation failed. Please try again.");
         return;
       }
-
-      // Sanitize and parse JSON
-      let parsedQuestions: QuizQuestion[];
-      try {
-        const sanitized = sanitizeJSON(generatedText);
-        parsedQuestions = JSON.parse(sanitized);
-      } catch (cleanupError) {
-        console.error("Quiz JSON parse error:", cleanupError, "Raw:", generatedText.substring(0, 500));
-        toast.error("Quiz could not be generated. Please try again.");
-        setIsGenerating(false);
-        return;
-      }
-
-      // Validate structure
-      if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-        console.error("Quiz validation failed: not an array or empty");
-        toast.error("Quiz generation returned invalid format. Please try again.");
-        setIsGenerating(false);
-        return;
-      }
-
-      // Validate each question
-      const validQuestions = parsedQuestions.filter((q, idx) => {
-        if (!q.question || typeof q.question !== "string") {
-          console.warn(`Question ${idx}: missing question text`);
-          return false;
-        }
-        if (!Array.isArray(q.options) || q.options.length !== 4) {
-          console.warn(`Question ${idx}: options must be array of 4`);
-          return false;
-        }
-        if (typeof q.correctAnswer !== "number" || q.correctAnswer < 0 || q.correctAnswer > 3) {
-          console.warn(`Question ${idx}: correctAnswer must be 0-3`);
-          return false;
-        }
-        if (!q.explanation || typeof q.explanation !== "string") {
-          console.warn(`Question ${idx}: missing explanation`);
-          // Still allow it but provide default
-          q.explanation = "No explanation provided.";
-        }
-        return true;
-      });
-
-      if (validQuestions.length === 0) {
-        console.error("Quiz validation failed: no valid questions after filtering");
-        toast.error("Quiz generation failed validation. Please try again.");
-        setIsGenerating(false);
-        return;
-      }
-
-      parsedQuestions = validQuestions;
 
       setQuestions(parsedQuestions);
       setCurrentIndex(0);
       setScore(0);
       setQuizComplete(false);
+      setMasteryBySkill({});
       toast.success("Quiz generated!");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error generating quiz:", error);
-      toast.error("Quiz could not be generated because the source material was too complex or formatted incorrectly.");
+      toast.error("Quiz could not be generated. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -202,14 +212,23 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       toast.error("Please select an answer");
       return;
     }
-
     const currentQuestion = questions[currentIndex];
-    if (selectedAnswer === currentQuestion.correctAnswer) {
+    const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+    
+    if (isCorrect) {
       setScore(score + 1);
-      toast.success("Correct!");
+      updateMastery(currentQuestion.skill_tag, "correct");
     } else {
-      toast.error("Incorrect");
+      updateMastery(currentQuestion.skill_tag, "wrong");
     }
+    setIsChecked(true);
+  };
+
+  const handleIdk = () => {
+    const currentQuestion = questions[currentIndex];
+    setSelectedAnswer(-1); // Mark as IDK
+    setUsedIdk(true);
+    updateMastery(currentQuestion.skill_tag, "idk");
     setIsChecked(true);
   };
 
@@ -218,6 +237,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       setCurrentIndex(currentIndex + 1);
       setSelectedAnswer(null);
       setIsChecked(false);
+      setUsedIdk(false);
     } else {
       setQuizComplete(true);
       saveScore();
@@ -226,29 +246,31 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
 
   const saveScore = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user || !collectionId) return;
 
       const percentage = Math.round((score / questions.length) * 100);
-
-      // Save to study_sessions as a quiz record
-      await supabase.from("study_sessions").insert({
+      await supabase.from("study_sessions").insert([{
         user_id: user.id,
         collection_id: collectionId,
         mode: "quiz",
-        conversation_history: {
+        conversation_history: JSON.parse(JSON.stringify({
           score: percentage,
           total: questions.length,
           correct: score,
-        },
-      });
-
-      toast.success("Quiz score saved!");
+          mastery: masteryBySkill
+        })),
+      }]);
     } catch (error) {
       console.error("Error saving score:", error);
     }
+  };
+
+  const generateWrongFeedback = (selectedIdx: number, correctIdx: number, options: string[]): string => {
+    if (selectedIdx === -1) {
+      return `The correct answer was "${options[correctIdx]}".`;
+    }
+    return `You picked "${options[selectedIdx]}". The correct answer is "${options[correctIdx]}".`;
   };
 
   if (!collectionId) {
@@ -283,19 +305,37 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
 
   if (quizComplete) {
     const percentage = Math.round((score / questions.length) * 100);
+    const overallMastery = getOverallMastery();
+    
     return (
       <div className="flex items-center justify-center h-full p-4">
         <Card className="w-full max-w-2xl">
           <CardHeader>
             <CardTitle>Quiz Complete!</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-center space-y-2">
-              <p className="text-4xl font-bold">{percentage}%</p>
-              <p className="text-muted-foreground">
-                You scored {score} out of {questions.length}
-              </p>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-3xl font-bold">{percentage}%</p>
+                <p className="text-sm text-muted-foreground">Score</p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-3xl font-bold">{overallMastery}%</p>
+                <p className="text-sm text-muted-foreground">Mastery</p>
+              </div>
             </div>
+
+            <div className="space-y-2">
+              <p className="font-medium text-sm">Skill Breakdown</p>
+              {Object.entries(masteryBySkill).map(([tag, skill]) => (
+                <div key={tag} className="flex items-center gap-2 text-sm">
+                  {getSkillIcon(skill)}
+                  <span className="flex-1">{tag.replace(/_/g, " ")}</span>
+                  <span className="text-muted-foreground">{skill.correct}/{skill.total}</span>
+                </div>
+              ))}
+            </div>
+
             <div className="flex gap-2 justify-center">
               <Button onClick={generateQuiz}>Take Another Quiz</Button>
               <Button variant="outline" onClick={() => setQuizComplete(false)}>
@@ -310,37 +350,83 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
 
   const currentQuestion = questions[currentIndex];
   const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+  const overallMastery = getOverallMastery();
 
   return (
     <div className="flex items-center justify-center h-full p-4">
       <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>
-              Question {currentIndex + 1} of {questions.length}
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base">
+              Q{currentIndex + 1}/{questions.length}
             </CardTitle>
-            <div className="text-sm text-muted-foreground">
-              Score: {score}/{currentIndex}
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Score: {score}/{currentIndex}</span>
+              <span className="text-muted-foreground">Mastery: {overallMastery}%</span>
+              <Dialog open={showProgress} onOpenChange={setShowProgress}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 px-2">
+                    <BarChart3 className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Skill Progress</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Overall Mastery</span>
+                        <span className="font-medium">{overallMastery}%</span>
+                      </div>
+                      <Progress value={overallMastery} className="h-2" />
+                    </div>
+                    <div className="space-y-3">
+                      {Object.entries(masteryBySkill).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Answer questions to see skill breakdown.</p>
+                      ) : (
+                        Object.entries(masteryBySkill).map(([tag, skill]) => {
+                          const pct = Math.round((skill.correct / Math.max(skill.total, 1)) * 100);
+                          return (
+                            <div key={tag} className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                {getSkillIcon(skill)}
+                                <span className="flex-1 capitalize">{tag.replace(/_/g, " ")}</span>
+                                <span className="text-muted-foreground">{skill.correct}/{skill.total}</span>
+                              </div>
+                              <Progress value={pct} className="h-1.5" />
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-lg">{currentQuestion.question}</p>
+        <CardContent className="space-y-4">
+          <p className="text-base font-medium">{currentQuestion.question}</p>
 
-          <RadioGroup value={selectedAnswer?.toString()} onValueChange={(val) => setSelectedAnswer(parseInt(val))}>
+          <RadioGroup
+            value={selectedAnswer?.toString()}
+            onValueChange={(val) => setSelectedAnswer(parseInt(val))}
+            className="space-y-2"
+          >
             {currentQuestion.options.map((option, idx) => (
-              <div key={idx} className="flex items-center space-x-2">
+              <div
+                key={idx}
+                className={`flex items-center space-x-2 p-2 rounded-md border transition-colors ${
+                  isChecked && idx === currentQuestion.correctAnswer
+                    ? "bg-green-50 border-green-300 dark:bg-green-950/30 dark:border-green-800"
+                    : isChecked && idx === selectedAnswer && idx !== currentQuestion.correctAnswer
+                      ? "bg-red-50 border-red-300 dark:bg-red-950/30 dark:border-red-800"
+                      : "hover:bg-muted/50"
+                }`}
+              >
                 <RadioGroupItem value={idx.toString()} id={`option-${idx}`} disabled={isChecked} />
-                <Label
-                  htmlFor={`option-${idx}`}
-                  className={`flex-1 cursor-pointer ${
-                    isChecked && idx === currentQuestion.correctAnswer
-                      ? "text-green-600 font-semibold"
-                      : isChecked && idx === selectedAnswer
-                        ? "text-red-600"
-                        : ""
-                  }`}
-                >
+                <Label htmlFor={`option-${idx}`} className="flex-1 cursor-pointer text-sm">
                   {option}
                   {isChecked && idx === currentQuestion.correctAnswer && (
                     <CheckCircle2 className="inline ml-2 h-4 w-4 text-green-600" />
@@ -353,18 +439,59 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
             ))}
           </RadioGroup>
 
-          {isChecked && currentQuestion.explanation && (
+          {isChecked && (
             <div
-              className={`p-4 rounded-lg border ${isCorrect ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800" : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"}`}
+              className={`p-4 rounded-lg border space-y-3 ${
+                isCorrect && !usedIdk
+                  ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800"
+                  : "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
+              }`}
             >
-              <p className="text-sm font-medium mb-1">{isCorrect ? "Correct!" : "Incorrect"}</p>
-              <p className="text-sm text-muted-foreground">{currentQuestion.explanation}</p>
+              <p className="text-sm font-semibold flex items-center gap-2">
+                {isCorrect && !usedIdk ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-green-600" /> Correct!
+                  </>
+                ) : usedIdk ? (
+                  <>
+                    <HelpCircle className="h-4 w-4 text-amber-600" /> You chose: I don't know
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 text-red-600" /> Incorrect
+                  </>
+                )}
+              </p>
+
+              {(!isCorrect || usedIdk) && (
+                <p className="text-sm text-muted-foreground">
+                  {generateWrongFeedback(selectedAnswer ?? -1, currentQuestion.correctAnswer, currentQuestion.options)}
+                </p>
+              )}
+
+              <div className="space-y-2">
+                <div className="flex items-start gap-2">
+                  <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <p className="text-sm"><strong>Why correct:</strong> {currentQuestion.explanation_correct}</p>
+                </div>
+                {currentQuestion.memory_hook && (
+                  <div className="flex items-start gap-2">
+                    <Brain className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <p className="text-sm"><strong>Remember:</strong> {currentQuestion.memory_hook}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           <div className="flex gap-2 justify-end">
             {!isChecked ? (
-              <Button onClick={handleCheckAnswer}>Check Answer</Button>
+              <>
+                <Button variant="outline" onClick={handleIdk}>
+                  <HelpCircle className="mr-1 h-4 w-4" /> I don't know
+                </Button>
+                <Button onClick={handleCheckAnswer}>Check Answer</Button>
+              </>
             ) : (
               <Button onClick={handleNext}>
                 {currentIndex < questions.length - 1 ? "Next Question" : "Finish Quiz"}

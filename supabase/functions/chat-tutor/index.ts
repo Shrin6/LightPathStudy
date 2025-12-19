@@ -25,12 +25,23 @@ function createMockStreamResponse(jsonData: object): ReadableStream {
 }
 
 // Helper: Sanitize quiz JSON output from AI
-function sanitizeQuizJson(raw: string): Array<{question: string; options: string[]; correctAnswer: number; explanation: string}> | null {
+interface QuizQuestion {
+  id?: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation_correct: string;
+  memory_hook: string;
+  skill_tag: string;
+}
+
+function sanitizeQuizJson(raw: string): QuizQuestion[] | null {
   try {
     let text = raw.trim();
     
     // Remove markdown code fences
     text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    text = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '');
     text = text.trim();
     
     // If starts with { and contains multiple question objects, try to extract array
@@ -64,24 +75,38 @@ function sanitizeQuizJson(raw: string): Array<{question: string; options: string
       return null;
     }
     
-    // Validate each question
-    const valid = parsed.every((q: any) => 
-      typeof q.question === 'string' &&
-      Array.isArray(q.options) &&
-      q.options.length === 4 &&
-      typeof q.correctAnswer === 'number' &&
-      q.correctAnswer >= 0 &&
-      q.correctAnswer <= 3 &&
-      typeof q.explanation === 'string' &&
-      q.explanation.length > 0
-    );
+    // Salvage valid questions with fallbacks
+    const validQuestions: QuizQuestion[] = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const q = parsed[i];
+      if (
+        typeof q.question === 'string' &&
+        Array.isArray(q.options) &&
+        q.options.length === 4 &&
+        typeof q.correctAnswer === 'number' &&
+        q.correctAnswer >= 0 &&
+        q.correctAnswer <= 3
+      ) {
+        validQuestions.push({
+          id: q.id || `q${i + 1}`,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation_correct: q.explanation_correct || q.explanation || 'This is the correct answer based on the study materials.',
+          memory_hook: q.memory_hook || '',
+          skill_tag: q.skill_tag || 'general_knowledge'
+        });
+      }
+    }
     
-    if (!valid) {
-      console.log('sanitizeQuizJson: Invalid question structure');
+    console.log('sanitizeQuizJson: salvaged', validQuestions.length, 'valid questions');
+    
+    if (validQuestions.length < 3) {
+      console.log('sanitizeQuizJson: Less than 3 valid questions');
       return null;
     }
     
-    return parsed;
+    return validQuestions;
   } catch (e) {
     console.log('sanitizeQuizJson: Parse error:', e);
     return null;
@@ -379,18 +404,24 @@ CRITICAL: Your response must be ONLY a raw JSON array. Nothing else.
 
 EXACT SCHEMA (5 objects):
 [
-  {"question":"...","options":["A","B","C","D"],"correctAnswer":0,"explanation":"..."},
-  {"question":"...","options":["A","B","C","D"],"correctAnswer":1,"explanation":"..."},
-  {"question":"...","options":["A","B","C","D"],"correctAnswer":2,"explanation":"..."},
-  {"question":"...","options":["A","B","C","D"],"correctAnswer":0,"explanation":"..."},
-  {"question":"...","options":["A","B","C","D"],"correctAnswer":3,"explanation":"..."}
+  {
+    "id": "q1",
+    "question": "What is the primary function of...?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": 0,
+    "explanation_correct": "Option A is correct because... The other options are incorrect: B would be true if..., C refers to..., D is...",
+    "memory_hook": "Remember: [short memorable phrase or acronym]",
+    "skill_tag": "topic_subtopic"
+  }
 ]
 
 RULES:
 - EXACTLY 5 question objects in the array
 - EXACTLY 4 strings in each options array
 - correctAnswer is integer 0, 1, 2, or 3
-- explanation: 1-3 sentences explaining why correct is right and others wrong
+- explanation_correct: 2-3 sentences that TEACH the concept. Explain WHY the correct answer is right AND briefly why each wrong option is wrong. Do NOT just cite notes.
+- memory_hook: One short memorable phrase, acronym, or tip to help remember this concept (max 15 words)
+- skill_tag: snake_case topic tag reflecting the concept tested (e.g., rna_processing, limiting_reactant, mole_ratio, transcription)
 - Base questions on the provided study materials
 - DO NOT include any text before [ or after ]
 `,
