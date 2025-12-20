@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { 
@@ -15,7 +16,9 @@ import {
   TrendingUp,
   Clock,
   FolderOpen,
-  ArrowRight
+  ArrowRight,
+  Settings,
+  BookMarked
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,20 +70,33 @@ const BIBLE_QUOTES = [
 
 // Changelog entries
 const CHANGELOG = [
+  { date: "Dec 2024", text: "Per-collection progress tracking on dashboard" },
   { date: "Dec 2024", text: "Added 20-question worksheet batches with topic targeting" },
   { date: "Dec 2024", text: "Improved quiz explanations with memory hooks" },
-  { date: "Dec 2024", text: "Better PDF parsing for complex documents" },
-  { date: "Nov 2024", text: "Added 'I don't know' button for honest learning" },
+  { date: "Dec 2024", text: "Added 'I don't know' button for honest learning" },
   { date: "Nov 2024", text: "Enhanced flashcard export to Anki format" },
 ];
+
+interface Collection {
+  id: string;
+  name: string;
+}
+
+interface CollectionProgress {
+  quiz: number;
+  flashcards: number;
+  worksheet: number;
+  overall: number;
+  lastStudied: string | null;
+}
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0 });
-  const [lastActivity, setLastActivity] = useState<string | null>(null);
-  const [activeCollection, setActiveCollection] = useState<string | null>(null);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<CollectionProgress>({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
   const [likedQuotes, setLikedQuotes] = useState<string[]>([]);
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
 
@@ -90,7 +106,7 @@ const Dashboard = () => {
         navigate("/");
       } else {
         setSession(session);
-        loadDashboardData(session.user.id);
+        loadCollections(session.user.id);
       }
       setLoading(false);
     });
@@ -119,13 +135,36 @@ const Dashboard = () => {
     setTodayQuote(BIBLE_QUOTES[quoteIndex]);
   }, []);
 
-  const loadDashboardData = async (userId: string) => {
+  const loadCollections = async (userId: string) => {
     try {
-      // Load study sessions for progress
+      const { data: collectionsData } = await supabase
+        .from("collections")
+        .select("id, name")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false });
+
+      if (collectionsData && collectionsData.length > 0) {
+        setCollections(collectionsData);
+        // Auto-select the first collection
+        const lastUsed = localStorage.getItem("lastCollectionId");
+        const toSelect = lastUsed && collectionsData.some(c => c.id === lastUsed) 
+          ? lastUsed 
+          : collectionsData[0].id;
+        setSelectedCollectionId(toSelect);
+        loadCollectionProgress(userId, toSelect);
+      }
+    } catch (error) {
+      console.error("Error loading collections:", error);
+    }
+  };
+
+  const loadCollectionProgress = async (userId: string, collectionId: string) => {
+    try {
       const { data: sessions } = await supabase
         .from("study_sessions")
         .select("*")
         .eq("user_id", userId)
+        .eq("collection_id", collectionId)
         .order("updated_at", { ascending: false })
         .limit(20);
 
@@ -140,51 +179,56 @@ const Dashboard = () => {
             if (history?.score !== undefined && history?.total !== undefined) {
               return (history.score / history.total) * 100;
             }
-            return 50; // Default if no score data
+            if (typeof history?.score === 'number') {
+              return history.score;
+            }
+            return 0;
           });
           quizAvg = scores.reduce((a, b) => a + b, 0) / scores.length;
         }
 
         // Count worksheet sessions
         const worksheetCount = sessions.filter(s => s.mode === "worksheet").length;
-        const worksheetProgress = Math.min(worksheetCount * 10, 100);
+        const worksheetProgress = Math.min(worksheetCount * 20, 100);
 
-        // Flashcard progress (simplified)
+        // Flashcard progress
         const flashcardSessions = sessions.filter(s => s.mode === "flashcards");
-        const flashcardProgress = flashcardSessions.length > 0 ? Math.min(flashcardSessions.length * 15, 100) : 0;
+        const flashcardProgress = flashcardSessions.length > 0 ? Math.min(flashcardSessions.length * 20, 100) : 0;
 
         // Overall progress
-        const overall = Math.round((quizAvg + worksheetProgress + flashcardProgress) / 3);
+        const counts = [quizAvg > 0 ? 1 : 0, worksheetProgress > 0 ? 1 : 0, flashcardProgress > 0 ? 1 : 0];
+        const total = counts.reduce((a, b) => a + b, 0);
+        const overall = total > 0 
+          ? Math.round((quizAvg + worksheetProgress + flashcardProgress) / (total * 100) * 100)
+          : 0;
+
+        // Last studied
+        const lastSession = sessions[0];
+        const lastStudied = lastSession?.updated_at 
+          ? new Date(lastSession.updated_at).toLocaleDateString() + " at " + 
+            new Date(lastSession.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : null;
 
         setProgress({
-          overall,
+          overall: Math.min(overall, 100),
           quiz: Math.round(quizAvg),
           flashcards: flashcardProgress,
-          worksheet: worksheetProgress
+          worksheet: worksheetProgress,
+          lastStudied
         });
-
-        // Last activity
-        const lastSession = sessions[0];
-        if (lastSession?.updated_at) {
-          const date = new Date(lastSession.updated_at);
-          setLastActivity(date.toLocaleDateString() + " at " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-        }
-
-        // Get active collection name
-        if (lastSession?.collection_id) {
-          const { data: collection } = await supabase
-            .from("collections")
-            .select("name")
-            .eq("id", lastSession.collection_id)
-            .single();
-          
-          if (collection) {
-            setActiveCollection(collection.name);
-          }
-        }
+      } else {
+        setProgress({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
       }
     } catch (error) {
-      console.error("Error loading dashboard data:", error);
+      console.error("Error loading progress:", error);
+    }
+  };
+
+  const handleCollectionChange = (collectionId: string) => {
+    setSelectedCollectionId(collectionId);
+    localStorage.setItem("lastCollectionId", collectionId);
+    if (session) {
+      loadCollectionProgress(session.user.id, collectionId);
     }
   };
 
@@ -222,6 +266,8 @@ const Dashboard = () => {
     }
   };
 
+  const selectedCollection = collections.find(c => c.id === selectedCollectionId);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -242,6 +288,9 @@ const Dashboard = () => {
       <header className="h-14 border-b bg-card flex items-center justify-between px-4">
         <h1 className="text-lg font-semibold">StudyBuddy AI</h1>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
+            <Settings className="h-4 w-4" />
+          </Button>
           {session?.user?.email && (
             <span className="text-sm text-muted-foreground hidden sm:block">
               {session.user.email}
@@ -259,51 +308,75 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-3 gap-6">
           {/* Left Column - Progress & Quick Actions */}
           <div className="md:col-span-2 space-y-6">
-            {/* Progress Summary */}
+            {/* Collection Selector + Progress */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Your Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-3xl font-bold text-primary">{progress.overall}%</span>
-                  <span className="text-sm text-muted-foreground">Overall Progress</span>
-                </div>
-                <Progress value={progress.overall} className="h-3" />
-                
-                <div className="grid grid-cols-3 gap-4 pt-2">
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <Brain className="h-5 w-5 mx-auto mb-1 text-primary" />
-                    <div className="text-lg font-semibold">{progress.quiz}%</div>
-                    <div className="text-xs text-muted-foreground">Quiz</div>
-                  </div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <Sparkles className="h-5 w-5 mx-auto mb-1 text-accent" />
-                    <div className="text-lg font-semibold">{progress.flashcards}%</div>
-                    <div className="text-xs text-muted-foreground">Flashcards</div>
-                  </div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <FileText className="h-5 w-5 mx-auto mb-1 text-success" />
-                    <div className="text-lg font-semibold">{progress.worksheet}%</div>
-                    <div className="text-xs text-muted-foreground">Worksheet</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-sm pt-2 border-t">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="h-4 w-4" />
-                    <span>Last Activity: {lastActivity || "No recent activity"}</span>
-                  </div>
-                  {activeCollection && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <FolderOpen className="h-4 w-4" />
-                      <span>{activeCollection}</span>
-                    </div>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Collection Progress
+                  </CardTitle>
+                  {collections.length > 0 && (
+                    <Select value={selectedCollectionId || ""} onValueChange={handleCollectionChange}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Select collection" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {collections.map(c => (
+                          <SelectItem key={c.id} value={c.id}>
+                            <div className="flex items-center gap-2">
+                              <FolderOpen className="h-4 w-4" />
+                              {c.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {collections.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No collections yet. Create one to start tracking progress!</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-3xl font-bold text-primary">{progress.overall}%</span>
+                      <span className="text-sm text-muted-foreground">
+                        {selectedCollection?.name || "Select a collection"}
+                      </span>
+                    </div>
+                    <Progress value={progress.overall} className="h-3" />
+                    
+                    <div className="grid grid-cols-3 gap-4 pt-2">
+                      <div className="text-center p-3 bg-muted/50 rounded-lg">
+                        <Brain className="h-5 w-5 mx-auto mb-1 text-primary" />
+                        <div className="text-lg font-semibold">{progress.quiz}%</div>
+                        <div className="text-xs text-muted-foreground">Quiz Avg</div>
+                      </div>
+                      <div className="text-center p-3 bg-muted/50 rounded-lg">
+                        <Sparkles className="h-5 w-5 mx-auto mb-1 text-accent" />
+                        <div className="text-lg font-semibold">{progress.flashcards}%</div>
+                        <div className="text-xs text-muted-foreground">Flashcards</div>
+                      </div>
+                      <div className="text-center p-3 bg-muted/50 rounded-lg">
+                        <FileText className="h-5 w-5 mx-auto mb-1 text-success" />
+                        <div className="text-lg font-semibold">{progress.worksheet}%</div>
+                        <div className="text-xs text-muted-foreground">Worksheet</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm pt-2 border-t">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        <span>Last studied: {progress.lastStudied || "Not started"}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -346,7 +419,7 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Right Column - Quote */}
+          {/* Right Column - Quote + Saved */}
           <div className="space-y-6">
             <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
               <CardHeader className="pb-2">
@@ -375,14 +448,18 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Liked Quotes Count */}
+            {/* Saved Quotes Access */}
             {likedQuotes.length > 0 && (
               <Card>
                 <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{likedQuotes.length}</div>
-                    <div className="text-sm text-muted-foreground">Saved Quotes</div>
-                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => navigate("/settings?tab=saved")}
+                  >
+                    <BookMarked className="h-4 w-4 mr-2" />
+                    View {likedQuotes.length} Saved Quote{likedQuotes.length > 1 ? 's' : ''}
+                  </Button>
                 </CardContent>
               </Card>
             )}

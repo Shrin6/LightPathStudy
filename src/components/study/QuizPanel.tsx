@@ -365,7 +365,16 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
       }
 
       if (saveToNotes && trickText) {
-        toast.success("Memory trick saved to notes!");
+        // Save to localStorage
+        const existing = localStorage.getItem("savedMemoryTricks");
+        const tricks = existing ? JSON.parse(existing) : [];
+        tricks.push({
+          concept: currentQuestion.question.substring(0, 100),
+          trick: trickText,
+          date: new Date().toLocaleDateString()
+        });
+        localStorage.setItem("savedMemoryTricks", JSON.stringify(tricks));
+        toast.success("Memory trick saved!");
       }
     } catch (error) {
       console.error("Error generating memory trick:", error);
@@ -390,10 +399,10 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
     );
   }
 
-  if (!collectionContent || collectionContent.length < 100) {
+  if (!collectionContent || collectionContent.length < 20) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Not enough content to generate quiz. Upload more files.</p>
+        <p className="text-muted-foreground">Not enough content to generate quiz. Upload some files first.</p>
       </div>
     );
   }
