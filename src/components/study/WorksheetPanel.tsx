@@ -158,6 +158,7 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
   const [memoryStyle, setMemoryStyle] = useState("");
   const [generatedMemoryTrick, setGeneratedMemoryTrick] = useState("");
   const [isGeneratingTrick, setIsGeneratingTrick] = useState(false);
+  const [saveToNotes, setSaveToNotes] = useState(false);
 
   const generateWorksheet = async (questionCount: number = 20) => {
     if (!collectionId) {
@@ -516,10 +517,10 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
     );
   }
 
-  if (!collectionContent || collectionContent.length < 100) {
+  if (!collectionContent || collectionContent.length < 20) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Not enough content to generate worksheet. Upload more files.</p>
+        <p className="text-muted-foreground">Not enough content to generate worksheet. Upload some files first.</p>
       </div>
     );
   }
@@ -896,12 +897,37 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                     ) : (
                       <div className="space-y-3">
                         <p className="text-sm whitespace-pre-wrap">{generatedMemoryTrick}</p>
+                        <div className="flex items-center gap-2">
+                          <Checkbox 
+                            id="saveToNotes" 
+                            checked={saveToNotes}
+                            onCheckedChange={(checked) => {
+                              setSaveToNotes(!!checked);
+                              if (checked && currentQuestion) {
+                                // Save to localStorage
+                                const existing = localStorage.getItem("savedMemoryTricks");
+                                const tricks = existing ? JSON.parse(existing) : [];
+                                tricks.push({
+                                  concept: currentQuestion.prompt.substring(0, 100),
+                                  trick: generatedMemoryTrick,
+                                  date: new Date().toLocaleDateString()
+                                });
+                                localStorage.setItem("savedMemoryTricks", JSON.stringify(tricks));
+                                toast.success("Memory trick saved!");
+                              }
+                            }}
+                          />
+                          <Label htmlFor="saveToNotes" className="text-xs cursor-pointer">
+                            Save to Simple Notes
+                          </Label>
+                        </div>
                         <Button 
                           size="sm" 
                           variant="outline"
                           onClick={() => {
                             setGeneratedMemoryTrick("");
                             setMemoryStyle("");
+                            setSaveToNotes(false);
                           }}
                         >
                           Generate Another
