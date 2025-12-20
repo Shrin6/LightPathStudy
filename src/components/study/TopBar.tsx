@@ -42,7 +42,7 @@ export const TopBar = ({ session, sidebarOpen, setSidebarOpen }: TopBarProps) =>
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate("/")}
+          onClick={() => navigate(session ? "/dashboard" : "/")}
         >
           <Home className="h-4 w-4 mr-2" />
           Home
