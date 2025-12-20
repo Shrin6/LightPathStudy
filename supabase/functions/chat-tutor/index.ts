@@ -38,10 +38,12 @@ interface QuizQuestion {
 function sanitizeQuizJson(raw: string): QuizQuestion[] | null {
   try {
     let text = raw.trim();
+    console.log('sanitizeQuizJson: raw length:', text.length);
     
-    // Remove markdown code fences
-    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    // Remove markdown code fences aggressively
+    text = text.replace(/^```(?:json)?\s*/gi, '').replace(/\s*```$/gi, '');
     text = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '');
+    text = text.replace(/^\s*json\s*/i, ''); // Sometimes just "json" prefix
     text = text.trim();
     
     // If starts with { and contains multiple question objects, try to extract array
@@ -51,8 +53,8 @@ function sanitizeQuizJson(raw: string): QuizQuestion[] | null {
       if (arrayMatch) {
         text = arrayMatch[0];
       } else {
-        // Wrap single object in array
-        const objects = text.match(/\{[^{}]*"question"[^{}]*\}/g);
+        // Wrap single object in array - more flexible pattern
+        const objects = text.match(/\{[^{}]*(?:"question"|"prompt")[^{}]*\}/g);
         if (objects && objects.length > 0) {
           text = '[' + objects.join(',') + ']';
         }
@@ -75,34 +77,44 @@ function sanitizeQuizJson(raw: string): QuizQuestion[] | null {
       return null;
     }
     
-    // Salvage valid questions with fallbacks
+    // Salvage valid questions with LENIENT fallbacks
     const validQuestions: QuizQuestion[] = [];
     for (let i = 0; i < parsed.length; i++) {
       const q = parsed[i];
+      const questionText = q.question || q.prompt || '';
+      const options = q.options || q.choices || [];
+      const correctAnswer = typeof q.correctAnswer === 'number' ? q.correctAnswer : 
+                           typeof q.correct_answer === 'number' ? q.correct_answer :
+                           typeof q.answer === 'number' ? q.answer : 0;
+      
+      // More lenient validation - accept if we have question + options
       if (
-        typeof q.question === 'string' &&
-        Array.isArray(q.options) &&
-        q.options.length === 4 &&
-        typeof q.correctAnswer === 'number' &&
-        q.correctAnswer >= 0 &&
-        q.correctAnswer <= 3
+        typeof questionText === 'string' && questionText.length > 5 &&
+        Array.isArray(options) && options.length >= 2
       ) {
+        // Normalize to 4 options if needed
+        const normalizedOptions = options.slice(0, 4);
+        while (normalizedOptions.length < 4) {
+          normalizedOptions.push(`Option ${String.fromCharCode(65 + normalizedOptions.length)}`);
+        }
+        
         validQuestions.push({
           id: q.id || `q${i + 1}`,
-          question: q.question,
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          explanation_correct: q.explanation_correct || q.explanation || 'This is the correct answer based on the study materials.',
-          memory_hook: q.memory_hook || '',
-          skill_tag: q.skill_tag || 'general_knowledge'
+          question: questionText,
+          options: normalizedOptions.map(String),
+          correctAnswer: Math.min(Math.max(0, correctAnswer), 3),
+          explanation_correct: q.explanation_correct || q.explanation || q.reason || 'No explanation provided.',
+          memory_hook: q.memory_hook || q.hint || q.tip || '',
+          skill_tag: q.skill_tag || q.topic || q.category || 'general'
         });
       }
     }
     
-    console.log('sanitizeQuizJson: salvaged', validQuestions.length, 'valid questions');
+    console.log('sanitizeQuizJson: salvaged', validQuestions.length, 'valid questions from', parsed.length, 'total');
     
-    if (validQuestions.length < 3) {
-      console.log('sanitizeQuizJson: Less than 3 valid questions');
+    // Accept with just 1 valid question - never fully fail
+    if (validQuestions.length === 0) {
+      console.log('sanitizeQuizJson: No valid questions found');
       return null;
     }
     
@@ -135,9 +147,10 @@ function sanitizeWorksheetJson(raw: string): WorksheetResponse | null {
     let text = raw.trim();
     console.log('sanitizeWorksheetJson: raw length:', text.length);
     
-    // Remove markdown code fences
+    // Remove markdown code fences aggressively
     text = text.replace(/^```(?:json)?\s*/gi, '').replace(/\s*```$/gi, '');
     text = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '');
+    text = text.replace(/^\s*json\s*/i, '');
     text = text.trim();
     
     // Find first { and last }
@@ -148,34 +161,62 @@ function sanitizeWorksheetJson(raw: string): WorksheetResponse | null {
     }
     
     // Parse
-    const parsed = JSON.parse(text);
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (jsonErr) {
+      // Try to extract just the questions array if full parse fails
+      const questionsMatch = text.match(/"questions"\s*:\s*\[([\s\S]*)\]/);
+      if (questionsMatch) {
+        try {
+          const questionsArr = JSON.parse('[' + questionsMatch[1] + ']');
+          parsed = { questions: questionsArr };
+        } catch {
+          throw jsonErr;
+        }
+      } else {
+        throw jsonErr;
+      }
+    }
     
-    // Check for questions array
-    if (!parsed.questions || !Array.isArray(parsed.questions)) {
+    // Check for questions array - also handle if it's already an array
+    let questionsArr = parsed.questions;
+    if (!questionsArr && Array.isArray(parsed)) {
+      questionsArr = parsed;
+    }
+    
+    if (!questionsArr || !Array.isArray(questionsArr)) {
       console.log('sanitizeWorksheetJson: No questions array found');
       return null;
     }
     
-    // Filter valid questions (salvage what we can)
+    // Filter valid questions with LENIENT validation
     const validQuestions: WorksheetQuestion[] = [];
-    for (const q of parsed.questions) {
-      if (typeof q.prompt === 'string' && q.prompt.length > 5 && typeof q.type === 'string') {
+    for (const q of questionsArr) {
+      const prompt = q.prompt || q.question || q.text || '';
+      
+      // Accept if we have a prompt with reasonable length
+      if (typeof prompt === 'string' && prompt.length > 5) {
+        const qType = q.type || (q.choices || q.options ? 'mcq' : 'short');
+        const choices = q.choices || q.options;
+        
         validQuestions.push({
           id: q.id || `q${validQuestions.length + 1}`,
-          type: q.type || 'short',
-          prompt: q.prompt,
-          choices: Array.isArray(q.choices) ? q.choices : undefined,
-          answer: String(q.answer || ''),
-          explanation: q.explanation || '',
-          source_ref: q.source_ref || undefined
+          type: qType,
+          prompt: prompt,
+          choices: Array.isArray(choices) ? choices.map(String) : undefined,
+          answer: String(q.answer || q.correct_answer || q.correctAnswer || ''),
+          explanation: q.explanation || q.reason || 'No explanation provided.',
+          source_ref: q.source_ref || q.source || undefined
         });
       }
     }
     
-    console.log('sanitizeWorksheetJson: salvaged', validQuestions.length, 'valid questions');
+    console.log('sanitizeWorksheetJson: salvaged', validQuestions.length, 'valid questions from', questionsArr.length, 'total');
     
-    if (validQuestions.length < 5) {
-      console.log('sanitizeWorksheetJson: Less than 5 valid questions');
+    // Accept with just 3 valid questions - lower threshold
+    if (validQuestions.length < 3) {
+      console.log('sanitizeWorksheetJson: Less than 3 valid questions');
       return null;
     }
     

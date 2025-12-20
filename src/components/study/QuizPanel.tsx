@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
@@ -58,32 +60,39 @@ const sanitizeQuizJSON = (text: string): QuizQuestion[] | null => {
     const parsed = JSON.parse(cleaned);
     if (!Array.isArray(parsed) || parsed.length === 0) return null;
 
-    // Salvage valid questions
+    // Salvage valid questions with lenient parsing
     const valid: QuizQuestion[] = [];
     for (let i = 0; i < parsed.length; i++) {
       const q = parsed[i];
+      const questionText = q.question || q.prompt || '';
+      const options = q.options || q.choices || [];
+      const correctAnswer = typeof q.correctAnswer === 'number' ? q.correctAnswer : 
+                           typeof q.correct_answer === 'number' ? q.correct_answer : 0;
+      
       if (
-        typeof q.question === "string" &&
-        Array.isArray(q.options) &&
-        q.options.length === 4 &&
-        typeof q.correctAnswer === "number" &&
-        q.correctAnswer >= 0 &&
-        q.correctAnswer <= 3
+        typeof questionText === "string" && questionText.length > 5 &&
+        Array.isArray(options) && options.length >= 2
       ) {
+        // Normalize to 4 options
+        const normalizedOptions = options.slice(0, 4).map(String);
+        while (normalizedOptions.length < 4) {
+          normalizedOptions.push(`Option ${String.fromCharCode(65 + normalizedOptions.length)}`);
+        }
+        
         valid.push({
           id: q.id || `q${i + 1}`,
-          question: q.question,
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          explanation_correct: q.explanation_correct || q.explanation || "This is the correct answer.",
-          memory_hook: q.memory_hook || "",
-          skill_tag: q.skill_tag || "general"
+          question: questionText,
+          options: normalizedOptions,
+          correctAnswer: Math.min(Math.max(0, correctAnswer), 3),
+          explanation_correct: q.explanation_correct || q.explanation || "No explanation provided.",
+          memory_hook: q.memory_hook || q.hint || "",
+          skill_tag: q.skill_tag || q.topic || "general"
         });
       }
     }
 
     console.log("Quiz parsing: salvaged", valid.length, "valid questions");
-    return valid.length >= 3 ? valid : null;
+    return valid.length >= 1 ? valid : null;
   } catch (e) {
     console.error("Quiz JSON parse error:", e);
     return null;
@@ -101,6 +110,13 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
   const [quizComplete, setQuizComplete] = useState(false);
   const [masteryBySkill, setMasteryBySkill] = useState<Record<string, SkillMastery>>({});
   const [showProgress, setShowProgress] = useState(false);
+  
+  // Memory Tricks state
+  const [showMemoryTrick, setShowMemoryTrick] = useState(false);
+  const [memoryStyle, setMemoryStyle] = useState("");
+  const [generatedMemoryTrick, setGeneratedMemoryTrick] = useState("");
+  const [isGeneratingTrick, setIsGeneratingTrick] = useState(false);
+  const [saveToNotes, setSaveToNotes] = useState(false);
 
   const updateMastery = (skillTag: string, outcome: "correct" | "wrong" | "idk") => {
     setMasteryBySkill(prev => {
@@ -132,7 +148,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
   };
 
   const generateQuiz = async () => {
-    if (!collectionId || collectionContent.length < 300) {
+    if (!collectionId || collectionContent.length < 100) {
       toast.error("Not enough content to generate quiz");
       return;
     }
@@ -198,7 +214,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       setScore(0);
       setQuizComplete(false);
       setMasteryBySkill({});
-      toast.success("Quiz generated!");
+      toast.success(`Generated ${parsedQuestions.length} questions!`);
     } catch (error) {
       console.error("Error generating quiz:", error);
       toast.error("Quiz could not be generated. Please try again.");
@@ -222,14 +238,18 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       updateMastery(currentQuestion.skill_tag, "wrong");
     }
     setIsChecked(true);
+    setGeneratedMemoryTrick("");
+    setShowMemoryTrick(false);
   };
 
   const handleIdk = () => {
     const currentQuestion = questions[currentIndex];
-    setSelectedAnswer(-1); // Mark as IDK
+    setSelectedAnswer(-1);
     setUsedIdk(true);
     updateMastery(currentQuestion.skill_tag, "idk");
     setIsChecked(true);
+    setShowMemoryTrick(true);
+    setGeneratedMemoryTrick("");
   };
 
   const handleNext = () => {
@@ -238,6 +258,10 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       setSelectedAnswer(null);
       setIsChecked(false);
       setUsedIdk(false);
+      setShowMemoryTrick(false);
+      setGeneratedMemoryTrick("");
+      setMemoryStyle("");
+      setSaveToNotes(false);
     } else {
       setQuizComplete(true);
       saveScore();
@@ -266,6 +290,91 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
     }
   };
 
+  const generateMemoryTrick = async () => {
+    const currentQuestion = questions[currentIndex];
+    if (!currentQuestion) return;
+    
+    setIsGeneratingTrick(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("You must be logged in");
+        return;
+      }
+
+      const stylePrompt = memoryStyle 
+        ? `Use a ${memoryStyle}-style analogy or reference.` 
+        : "Use a simple, memorable analogy.";
+      
+      const wrongChoice = selectedAnswer !== null && selectedAnswer >= 0 && selectedAnswer !== currentQuestion.correctAnswer
+        ? `The user incorrectly chose: "${currentQuestion.options[selectedAnswer]}". Address why this was wrong.`
+        : "";
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-tutor`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          messages: [{ 
+            role: "user", 
+            content: `Create a short memory trick (2-4 lines max) to help remember this concept:
+
+Question: ${currentQuestion.question}
+Correct Answer: ${currentQuestion.options[currentQuestion.correctAnswer]}
+${wrongChoice}
+
+${stylePrompt}
+
+Be creative, fun, and memorable. Focus on WHY the answer is correct.` 
+          }],
+          mode: "memory",
+          collectionId,
+          notes: collectionContent,
+          document_type_hint: documentTypeHint,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to generate memory trick");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let trickText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        for (const line of chunk.split("\n")) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                trickText += content;
+                setGeneratedMemoryTrick(trickText);
+              }
+            } catch {}
+          }
+        }
+      }
+
+      if (saveToNotes && trickText) {
+        toast.success("Memory trick saved to notes!");
+      }
+    } catch (error) {
+      console.error("Error generating memory trick:", error);
+      toast.error("Could not generate memory trick");
+    } finally {
+      setIsGeneratingTrick(false);
+    }
+  };
+
   const generateWrongFeedback = (selectedIdx: number, correctIdx: number, options: string[]): string => {
     if (selectedIdx === -1) {
       return `The correct answer was "${options[correctIdx]}".`;
@@ -281,10 +390,10 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
     );
   }
 
-  if (!collectionContent || collectionContent.length < 300) {
+  if (!collectionContent || collectionContent.length < 100) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Not enough content to generate quiz. Upload more detailed files.</p>
+        <p className="text-muted-foreground">Not enough content to generate quiz. Upload more files.</p>
       </div>
     );
   }
@@ -293,7 +402,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center space-y-4">
-          <p className="text-muted-foreground">No quiz yet</p>
+          <p className="text-muted-foreground">Ready to test your knowledge?</p>
           <Button onClick={generateQuiz} disabled={isGenerating}>
             {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isGenerating ? "Generating..." : "Generate Quiz"}
@@ -321,7 +430,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
               </div>
               <div className="p-4 rounded-lg bg-muted">
                 <p className="text-3xl font-bold">{overallMastery}%</p>
-                <p className="text-sm text-muted-foreground">Mastery</p>
+                <p className="text-sm text-muted-foreground">Understanding</p>
               </div>
             </div>
 
@@ -362,7 +471,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
             </CardTitle>
             <div className="flex items-center gap-3 text-sm">
               <span className="text-muted-foreground">Score: {score}/{currentIndex}</span>
-              <span className="text-muted-foreground">Mastery: {overallMastery}%</span>
+              <span className="text-muted-foreground">Understanding: {overallMastery}%</span>
               <Dialog open={showProgress} onOpenChange={setShowProgress}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-7 px-2">
@@ -371,12 +480,12 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Skill Progress</DialogTitle>
+                    <DialogTitle>Progress & Understanding</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span>Overall Mastery</span>
+                        <span>Overall Understanding</span>
                         <span className="font-medium">{overallMastery}%</span>
                       </div>
                       <Progress value={overallMastery} className="h-2" />
@@ -481,6 +590,73 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
                   </div>
                 )}
               </div>
+
+              {/* Memory Trick Section - show for wrong/IDK answers */}
+              {(!isCorrect || usedIdk) && (
+                <div className="mt-4 pt-3 border-t border-border/50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Memory Trick</span>
+                  </div>
+                  
+                  {!generatedMemoryTrick ? (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="memoryStyle" className="text-xs text-muted-foreground">
+                          How do you want to remember this? (optional)
+                        </Label>
+                        <Input
+                          id="memoryStyle"
+                          value={memoryStyle}
+                          onChange={(e) => setMemoryStyle(e.target.value)}
+                          placeholder="e.g., DBZ, cooking, sports, simple..."
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={generateMemoryTrick}
+                          disabled={isGeneratingTrick}
+                          className="flex-1"
+                        >
+                          {isGeneratingTrick ? (
+                            <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Generating...</>
+                          ) : (
+                            <><Sparkles className="mr-2 h-3 w-3" /> Generate Memory Trick</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-primary/5 rounded-lg">
+                        <p className="text-sm whitespace-pre-wrap">{generatedMemoryTrick}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox 
+                          id="saveToNotes" 
+                          checked={saveToNotes}
+                          onCheckedChange={(checked) => setSaveToNotes(checked === true)}
+                        />
+                        <Label htmlFor="saveToNotes" className="text-xs text-muted-foreground cursor-pointer">
+                          Add this to Simple Notes
+                        </Label>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          setGeneratedMemoryTrick("");
+                          setMemoryStyle("");
+                        }}
+                      >
+                        Generate Another
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

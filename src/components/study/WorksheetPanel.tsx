@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, Download, ChevronLeft, ChevronRight, Check, X, RotateCcw } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, Download, ChevronLeft, ChevronRight, Check, X, RotateCcw, HelpCircle, BarChart3, CheckCircle2, XCircle, Sparkles, Brain } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { exportWorksheetToPdf } from '@/lib/exportUtils';
@@ -34,17 +37,24 @@ interface WorksheetResponse {
   questions: WorksheetQuestion[];
 }
 
+interface SkillMastery {
+  correct: number;
+  wrong: number;
+  idk: number;
+  total: number;
+}
+
 type WorksheetMode = 'onsite' | 'download';
 
 function sanitizeWorksheetResponse(raw: string): WorksheetResponse | null {
   try {
     let text = raw.trim();
     console.log('WorksheetPanel: raw AI output length:', text.length);
-    console.log('WorksheetPanel: raw AI output preview:', text.substring(0, 500));
     
-    // Remove markdown code fences
+    // Remove markdown code fences aggressively
     text = text.replace(/^```(?:json)?\s*/gi, '').replace(/\s*```$/gi, '');
     text = text.replace(/```json\s*/gi, '').replace(/```\s*/gi, '');
+    text = text.replace(/^\s*json\s*/i, '');
     text = text.trim();
     
     // Find first { and last }
@@ -54,53 +64,62 @@ function sanitizeWorksheetResponse(raw: string): WorksheetResponse | null {
       text = text.substring(firstBrace, lastBrace + 1);
     }
     
-    // Parse
-    const parsed = JSON.parse(text);
-    
-    // Check for questions array
-    if (!parsed.questions || !Array.isArray(parsed.questions)) {
-      console.log('WorksheetPanel: No questions array found, checking for alternate structures');
-      // Try to salvage from other structures
-      if (Array.isArray(parsed)) {
-        // It's already an array of questions
-        return {
-          set_id: crypto.randomUUID(),
-          topic_focus: '',
-          questions: parsed.filter((q: any) => q.prompt || q.question).map((q: any, i: number) => ({
-            id: q.id || `q${i + 1}`,
-            type: q.type || 'short',
-            prompt: q.prompt || q.question || '',
-            choices: q.choices || q.options,
-            answer: String(q.answer || ''),
-            explanation: q.explanation || '',
-            source_ref: q.source_ref
-          }))
-        };
+    // Parse with fallback for questions array extraction
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // Try to extract just the questions array
+      const questionsMatch = text.match(/"questions"\s*:\s*\[([\s\S]*)\]/);
+      if (questionsMatch) {
+        try {
+          const questionsArr = JSON.parse('[' + questionsMatch[1] + ']');
+          parsed = { questions: questionsArr };
+        } catch {
+          return null;
+        }
+      } else {
+        return null;
       }
+    }
+    
+    // Handle if it's already an array
+    let questionsArr = parsed.questions;
+    if (!questionsArr && Array.isArray(parsed)) {
+      questionsArr = parsed;
+    }
+    
+    if (!questionsArr || !Array.isArray(questionsArr)) {
+      console.log('WorksheetPanel: No questions array found');
       return null;
     }
     
-    // Filter valid questions (salvage what we can)
+    // Filter valid questions with LENIENT validation
     const validQuestions: WorksheetQuestion[] = [];
-    for (const q of parsed.questions) {
-      const prompt = q.prompt || q.question;
+    for (const q of questionsArr) {
+      const prompt = q.prompt || q.question || q.text || '';
+      
       if (typeof prompt === 'string' && prompt.length > 5) {
+        const qType = q.type || (q.choices || q.options ? 'mcq' : 'short');
+        const choices = q.choices || q.options;
+        
         validQuestions.push({
           id: q.id || `q${validQuestions.length + 1}`,
-          type: q.type || 'short',
+          type: qType as any,
           prompt: prompt,
-          choices: Array.isArray(q.choices) ? q.choices : (Array.isArray(q.options) ? q.options : undefined),
-          answer: String(q.answer || ''),
-          explanation: q.explanation || '',
-          source_ref: q.source_ref || undefined
+          choices: Array.isArray(choices) ? choices.map(String) : undefined,
+          answer: String(q.answer || q.correct_answer || q.correctAnswer || ''),
+          explanation: q.explanation || q.reason || 'No explanation provided.',
+          source_ref: q.source_ref || q.source || undefined
         });
       }
     }
     
     console.log('WorksheetPanel: salvaged', validQuestions.length, 'valid questions');
     
-    if (validQuestions.length < 5) {
-      console.log('WorksheetPanel: Less than 5 valid questions - salvage count:', validQuestions.length);
+    // Lower threshold - accept with just 3 valid questions
+    if (validQuestions.length < 3) {
+      console.log('WorksheetPanel: Less than 3 valid questions');
       return null;
     }
     
@@ -125,9 +144,20 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
   const [checkedAnswers, setCheckedAnswers] = useState<Record<string, boolean>>({});
+  const [idkAnswers, setIdkAnswers] = useState<Record<string, boolean>>({});
   const [showResults, setShowResults] = useState(false);
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [userTextAnswer, setUserTextAnswer] = useState('');
+  
+  // Progress tracking
+  const [masteryByTopic, setMasteryByTopic] = useState<Record<string, SkillMastery>>({});
+  const [showProgress, setShowProgress] = useState(false);
+  
+  // Memory Tricks
+  const [showMemoryTrick, setShowMemoryTrick] = useState(false);
+  const [memoryStyle, setMemoryStyle] = useState("");
+  const [generatedMemoryTrick, setGeneratedMemoryTrick] = useState("");
+  const [isGeneratingTrick, setIsGeneratingTrick] = useState(false);
 
   const generateWorksheet = async (questionCount: number = 20) => {
     if (!collectionId || collectionContent.length < 100) {
@@ -140,7 +170,9 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     setCurrentQuestionIndex(0);
     setUserAnswers({});
     setCheckedAnswers({});
+    setIdkAnswers({});
     setShowResults(false);
+    setGeneratedMemoryTrick("");
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -208,10 +240,9 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
 
       console.log('WorksheetPanel: Full generated text length:', generatedText.length);
       
-      // Parse worksheet response
       const worksheetData = sanitizeWorksheetResponse(generatedText);
       
-      if (worksheetData && worksheetData.questions.length >= 5) {
+      if (worksheetData && worksheetData.questions.length >= 3) {
         setWorksheet(worksheetData);
         console.log('WorksheetPanel: parsed question count:', worksheetData.questions.length);
         toast.success(`Generated ${worksheetData.questions.length} questions!`);
@@ -234,7 +265,6 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     }
 
     try {
-      // Format for PDF export
       const sections = worksheet.questions.map((q, i) => ({
         type: `Question ${i + 1} (${q.type.toUpperCase()})`,
         content: q.type === 'mcq' && q.choices 
@@ -242,7 +272,6 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
           : q.prompt
       }));
       
-      // Add answer key
       sections.push({
         type: 'ANSWER KEY',
         content: worksheet.questions.map((q, i) => 
@@ -261,7 +290,38 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
 
   const currentQuestion = worksheet?.questions[currentQuestionIndex];
   const isAnswerChecked = currentQuestion ? checkedAnswers[currentQuestion.id] : false;
+  const isIdkAnswer = currentQuestion ? idkAnswers[currentQuestion.id] : false;
   const totalQuestions = worksheet?.questions.length || 0;
+
+  const updateMastery = (questionType: string, outcome: "correct" | "wrong" | "idk") => {
+    const topic = topicFocus || questionType;
+    setMasteryByTopic(prev => {
+      const current = prev[topic] || { correct: 0, wrong: 0, idk: 0, total: 0 };
+      return {
+        ...prev,
+        [topic]: {
+          correct: current.correct + (outcome === "correct" ? 1 : 0),
+          wrong: current.wrong + (outcome === "wrong" ? 1 : 0),
+          idk: current.idk + (outcome === "idk" ? 1 : 0),
+          total: current.total + 1
+        }
+      };
+    });
+  };
+
+  const getOverallMastery = (): number => {
+    const skills = Object.values(masteryByTopic);
+    if (skills.length === 0) return 0;
+    const avg = skills.reduce((sum, s) => sum + (s.correct / Math.max(s.total, 1)), 0) / skills.length;
+    return Math.round(avg * 100);
+  };
+
+  const getSkillIcon = (skill: SkillMastery) => {
+    const pct = (skill.correct / Math.max(skill.total, 1)) * 100;
+    if (pct >= 80) return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    if (pct >= 50) return <HelpCircle className="h-4 w-4 text-yellow-500" />;
+    return <XCircle className="h-4 w-4 text-red-500" />;
+  };
 
   const handleCheckAnswer = () => {
     if (!currentQuestion) return;
@@ -274,16 +334,30 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     
     setUserAnswers(prev => ({ ...prev, [currentQuestion.id]: userAnswer }));
     setCheckedAnswers(prev => ({ ...prev, [currentQuestion.id]: true }));
+    
+    const correct = isAnswerCorrect(currentQuestion, userAnswer);
+    updateMastery(currentQuestion.type, correct ? "correct" : "wrong");
+    setGeneratedMemoryTrick("");
+    setShowMemoryTrick(!correct);
   };
 
-  const isAnswerCorrect = (question: WorksheetQuestion): boolean => {
-    const userAnswer = userAnswers[question.id];
-    if (!userAnswer) return false;
+  const handleIdk = () => {
+    if (!currentQuestion) return;
+    
+    setIdkAnswers(prev => ({ ...prev, [currentQuestion.id]: true }));
+    setCheckedAnswers(prev => ({ ...prev, [currentQuestion.id]: true }));
+    updateMastery(currentQuestion.type, "idk");
+    setShowMemoryTrick(true);
+    setGeneratedMemoryTrick("");
+  };
+
+  const isAnswerCorrect = (question: WorksheetQuestion, userAnswer?: string): boolean => {
+    const answer = userAnswer || userAnswers[question.id];
+    if (!answer) return false;
     
     const correctAnswer = question.answer.toLowerCase().trim();
-    const userAnswerNormalized = userAnswer.toLowerCase().trim();
+    const userAnswerNormalized = answer.toLowerCase().trim();
     
-    // For MCQ, check if user selected the correct choice
     if (question.type === 'mcq' && question.choices) {
       const correctIndex = question.choices.findIndex(c => 
         c.toLowerCase().trim() === correctAnswer || 
@@ -292,7 +366,6 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
       return userAnswerNormalized === question.choices[correctIndex]?.toLowerCase().trim();
     }
     
-    // For other types, check if answer is contained or matches
     return userAnswerNormalized.includes(correctAnswer) || correctAnswer.includes(userAnswerNormalized);
   };
 
@@ -301,8 +374,10 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
       setCurrentQuestionIndex(prev => prev + 1);
       setSelectedChoice(null);
       setUserTextAnswer('');
+      setShowMemoryTrick(false);
+      setGeneratedMemoryTrick("");
+      setMemoryStyle("");
     } else {
-      // Show results
       setShowResults(true);
     }
   };
@@ -310,7 +385,6 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(prev => prev - 1);
-      // Restore previous answer if exists
       const prevQuestion = worksheet?.questions[currentQuestionIndex - 1];
       if (prevQuestion) {
         const prevAnswer = userAnswers[prevQuestion.id];
@@ -320,6 +394,8 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
           setUserTextAnswer(prevAnswer || '');
         }
       }
+      setShowMemoryTrick(false);
+      setGeneratedMemoryTrick("");
     }
   };
 
@@ -332,14 +408,98 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     setCurrentQuestionIndex(0);
     setUserAnswers({});
     setCheckedAnswers({});
+    setIdkAnswers({});
     setShowResults(false);
     setSelectedChoice(null);
     setUserTextAnswer('');
+    setShowMemoryTrick(false);
+    setGeneratedMemoryTrick("");
   };
 
   const getScore = (): number => {
     if (!worksheet) return 0;
-    return worksheet.questions.filter(q => checkedAnswers[q.id] && isAnswerCorrect(q)).length;
+    return worksheet.questions.filter(q => checkedAnswers[q.id] && !idkAnswers[q.id] && isAnswerCorrect(q)).length;
+  };
+
+  const generateMemoryTrick = async () => {
+    if (!currentQuestion) return;
+    
+    setIsGeneratingTrick(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("You must be logged in");
+        return;
+      }
+
+      const stylePrompt = memoryStyle 
+        ? `Use a ${memoryStyle}-style analogy or reference.` 
+        : "Use a simple, memorable analogy.";
+      
+      const userAnswer = currentQuestion.type === 'mcq' ? selectedChoice : userTextAnswer;
+      const wrongInfo = userAnswer && !isAnswerCorrect(currentQuestion, userAnswer)
+        ? `The user incorrectly answered: "${userAnswer}". Address why this was wrong.`
+        : "";
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-tutor`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          messages: [{ 
+            role: "user", 
+            content: `Create a short memory trick (2-4 lines max) to help remember this concept:
+
+Question: ${currentQuestion.prompt}
+Correct Answer: ${currentQuestion.answer}
+${wrongInfo}
+
+${stylePrompt}
+
+Be creative, fun, and memorable. Focus on WHY the answer is correct.` 
+          }],
+          mode: "memory",
+          collectionId,
+          notes: collectionContent,
+          document_type_hint: documentTypeHint,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to generate memory trick");
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const decoder = new TextDecoder();
+      let trickText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        for (const line of chunk.split("\n")) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) {
+                trickText += content;
+                setGeneratedMemoryTrick(trickText);
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error generating memory trick:", error);
+      toast.error("Could not generate memory trick");
+    } finally {
+      setIsGeneratingTrick(false);
+    }
   };
 
   // Early returns for missing content
@@ -362,39 +522,58 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
   // Results view
   if (showResults && worksheet) {
     const score = getScore();
+    const idkCount = Object.values(idkAnswers).filter(Boolean).length;
     const percentage = Math.round((score / totalQuestions) * 100);
+    const overallMastery = getOverallMastery();
     
     return (
       <div className="flex flex-col h-full p-4 overflow-auto">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold mb-2">Worksheet Complete!</h2>
-          <p className="text-4xl font-bold text-primary mb-2">
-            {score} / {totalQuestions}
-          </p>
-          <p className="text-muted-foreground">{percentage}% correct</p>
-        </div>
-        
-        <div className="flex gap-2 justify-center mb-6">
-          <Button onClick={handleRestart} variant="outline">
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Review Answers
-          </Button>
-          <Button onClick={handleGenerateMore}>
-            Generate 20 More
-          </Button>
-        </div>
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Worksheet Complete!</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-2xl font-bold text-green-600">{score}</p>
+                <p className="text-xs text-muted-foreground">Correct</p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-2xl font-bold text-amber-600">{idkCount}</p>
+                <p className="text-xs text-muted-foreground">I don't know</p>
+              </div>
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-2xl font-bold">{overallMastery}%</p>
+                <p className="text-xs text-muted-foreground">Understanding</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 justify-center">
+              <Button onClick={handleRestart} variant="outline">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Review Answers
+              </Button>
+              <Button onClick={handleGenerateMore}>
+                Generate 20 More
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         
         <div className="space-y-4">
           {worksheet.questions.map((q, idx) => {
-            const correct = isAnswerCorrect(q);
+            const correct = !idkAnswers[q.id] && isAnswerCorrect(q);
             const userAnswer = userAnswers[q.id];
+            const isIdk = idkAnswers[q.id];
             
             return (
-              <Card key={q.id} className={correct ? 'border-green-500/50' : 'border-red-500/50'}>
+              <Card key={q.id} className={correct ? 'border-green-500/50' : isIdk ? 'border-amber-500/50' : 'border-red-500/50'}>
                 <CardContent className="pt-4">
                   <div className="flex items-start gap-2">
                     {correct ? (
                       <Check className="h-5 w-5 text-green-500 mt-1 shrink-0" />
+                    ) : isIdk ? (
+                      <HelpCircle className="h-5 w-5 text-amber-500 mt-1 shrink-0" />
                     ) : (
                       <X className="h-5 w-5 text-red-500 mt-1 shrink-0" />
                     )}
@@ -402,9 +581,11 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
                       <p className="font-medium mb-2">{idx + 1}. {q.prompt}</p>
                       <p className="text-sm">
                         <span className="text-muted-foreground">Your answer:</span>{' '}
-                        <span className={correct ? 'text-green-600' : 'text-red-600'}>{userAnswer || '(no answer)'}</span>
+                        <span className={correct ? 'text-green-600' : isIdk ? 'text-amber-600' : 'text-red-600'}>
+                          {isIdk ? "(I don't know)" : userAnswer || '(no answer)'}
+                        </span>
                       </p>
-                      {!correct && (
+                      {(!correct || isIdk) && (
                         <p className="text-sm">
                           <span className="text-muted-foreground">Correct answer:</span>{' '}
                           <span className="text-green-600">{q.answer}</span>
@@ -466,7 +647,7 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
           </div>
           
           <Button 
-            onClick={() => generateWorksheet(worksheetMode === 'download' ? 20 : 20)} 
+            onClick={() => generateWorksheet(20)} 
             disabled={isGenerating}
             size="lg"
             className="w-full"
@@ -529,6 +710,8 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     );
   }
 
+  const overallMastery = getOverallMastery();
+
   // On-site mode: quiz-like UX
   return (
     <div className="flex flex-col h-full p-4">
@@ -538,8 +721,48 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
         </h2>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">
-            {Object.keys(checkedAnswers).length} answered
+            Understanding: {overallMastery}%
           </span>
+          <Dialog open={showProgress} onOpenChange={setShowProgress}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 px-2">
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Progress & Understanding</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Overall Understanding</span>
+                    <span className="font-medium">{overallMastery}%</span>
+                  </div>
+                  <Progress value={overallMastery} className="h-2" />
+                </div>
+                <div className="space-y-3">
+                  {Object.entries(masteryByTopic).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Answer questions to see progress.</p>
+                  ) : (
+                    Object.entries(masteryByTopic).map(([tag, skill]) => {
+                      const pct = Math.round((skill.correct / Math.max(skill.total, 1)) * 100);
+                      return (
+                        <div key={tag} className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm">
+                            {getSkillIcon(skill)}
+                            <span className="flex-1 capitalize">{tag.replace(/_/g, " ")}</span>
+                            <span className="text-muted-foreground">{skill.correct}/{skill.total}</span>
+                          </div>
+                          <Progress value={pct} className="h-1.5" />
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Button onClick={handleDownload} variant="ghost" size="sm">
             <Download className="h-4 w-4" />
           </Button>
@@ -555,8 +778,8 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
       </div>
 
       {currentQuestion && (
-        <Card className="flex-1 flex flex-col">
-          <CardHeader>
+        <Card className="flex-1 flex flex-col overflow-hidden">
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-2 mb-2">
               <span className="bg-primary/10 text-primary text-xs px-2 py-1 rounded font-medium">
                 {currentQuestion.type.toUpperCase()}
@@ -564,7 +787,7 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
             </div>
             <CardTitle className="text-lg leading-relaxed">{currentQuestion.prompt}</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
+          <CardContent className="flex-1 flex flex-col overflow-auto">
             {currentQuestion.type === 'mcq' && currentQuestion.choices ? (
               <RadioGroup 
                 value={selectedChoice || ''} 
@@ -583,7 +806,7 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
                         isAnswerChecked
                           ? isCorrect
                             ? 'bg-green-500/10 border-green-500'
-                            : isSelected
+                            : isSelected && !isIdkAnswer
                               ? 'bg-red-500/10 border-red-500'
                               : 'border-border'
                           : 'hover:bg-muted/50 border-border'
@@ -594,7 +817,7 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
                         {String.fromCharCode(65 + i)}. {choice}
                       </Label>
                       {isAnswerChecked && isCorrect && <Check className="h-4 w-4 text-green-500" />}
-                      {isAnswerChecked && isSelected && !isCorrect && <X className="h-4 w-4 text-red-500" />}
+                      {isAnswerChecked && isSelected && !isCorrect && !isIdkAnswer && <X className="h-4 w-4 text-red-500" />}
                     </div>
                   );
                 })}
@@ -618,11 +841,70 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
               </div>
             )}
             
-            {/* Explanation after checking */}
-            {isAnswerChecked && currentQuestion.explanation && (
-              <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium mb-1">Explanation:</p>
-                <p className="text-sm text-muted-foreground">{currentQuestion.explanation}</p>
+            {/* Explanation + Memory Trick after checking */}
+            {isAnswerChecked && (
+              <div className="mt-4 space-y-4">
+                <div className="p-4 bg-muted/50 rounded-lg">
+                  {isIdkAnswer && (
+                    <p className="text-sm font-medium text-amber-600 mb-2 flex items-center gap-1">
+                      <HelpCircle className="h-4 w-4" /> You chose: I don't know
+                    </p>
+                  )}
+                  <p className="text-sm font-medium mb-1">Explanation:</p>
+                  <p className="text-sm text-muted-foreground">{currentQuestion.explanation}</p>
+                </div>
+
+                {/* Memory Trick Section */}
+                {(showMemoryTrick || isIdkAnswer || !isAnswerCorrect(currentQuestion)) && (
+                  <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Brain className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">Memory Trick</span>
+                    </div>
+                    
+                    {!generatedMemoryTrick ? (
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="memoryStyle" className="text-xs text-muted-foreground">
+                            How do you want to remember this? (optional)
+                          </Label>
+                          <Input
+                            id="memoryStyle"
+                            value={memoryStyle}
+                            onChange={(e) => setMemoryStyle(e.target.value)}
+                            placeholder="e.g., DBZ, cooking, sports, simple..."
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <Button 
+                          size="sm" 
+                          onClick={generateMemoryTrick}
+                          disabled={isGeneratingTrick}
+                        >
+                          {isGeneratingTrick ? (
+                            <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Generating...</>
+                          ) : (
+                            <><Sparkles className="mr-2 h-3 w-3" /> Generate Memory Trick</>
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-sm whitespace-pre-wrap">{generatedMemoryTrick}</p>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            setGeneratedMemoryTrick("");
+                            setMemoryStyle("");
+                          }}
+                        >
+                          Generate Another
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             
@@ -640,9 +922,14 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
               </Button>
               
               {!isAnswerChecked ? (
-                <Button onClick={handleCheckAnswer}>
-                  Check Answer
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleIdk}>
+                    <HelpCircle className="mr-1 h-4 w-4" /> I don't know
+                  </Button>
+                  <Button onClick={handleCheckAnswer}>
+                    Check Answer
+                  </Button>
+                </div>
               ) : (
                 <Button onClick={handleNext}>
                   {currentQuestionIndex === totalQuestions - 1 ? 'See Results' : 'Next'}
