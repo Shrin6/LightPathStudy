@@ -160,8 +160,13 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
   const [isGeneratingTrick, setIsGeneratingTrick] = useState(false);
 
   const generateWorksheet = async (questionCount: number = 20) => {
-    if (!collectionId || collectionContent.length < 100) {
-      toast.error('Not enough content to generate worksheet');
+    if (!collectionId) {
+      toast.error('Please select a collection first');
+      return;
+    }
+    
+    if (collectionContent.length < 20) {
+      toast.error('Collection content is too short. Please upload some materials first.');
       return;
     }
 
