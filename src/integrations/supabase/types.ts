@@ -38,6 +38,42 @@ export type Database = {
         }
         Relationships: []
       }
+      content_reports: {
+        Row: {
+          collection_id: string | null
+          comment: string | null
+          created_at: string
+          feature: string
+          id: string
+          payload: Json
+          reason: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          collection_id?: string | null
+          comment?: string | null
+          created_at?: string
+          feature: string
+          id?: string
+          payload?: Json
+          reason: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          collection_id?: string | null
+          comment?: string | null
+          created_at?: string
+          feature?: string
+          id?: string
+          payload?: Json
+          reason?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       document_chunks: {
         Row: {
           chunk_index: number

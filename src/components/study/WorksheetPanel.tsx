@@ -7,11 +7,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Download, ChevronLeft, ChevronRight, Check, X, RotateCcw, HelpCircle, BarChart3, CheckCircle2, XCircle, Sparkles, Brain } from 'lucide-react';
+import { Loader2, Download, ChevronLeft, ChevronRight, Check, X, RotateCcw, HelpCircle, BarChart3, CheckCircle2, XCircle, Sparkles, Brain, Flag } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { exportWorksheetToPdf } from '@/lib/exportUtils';
 import { DocumentTypeHint } from "@/pages/Study";
+import { ReportDialog, ReportPayload } from "./ReportDialog";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
 
@@ -786,10 +787,22 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
       {currentQuestion && (
         <Card className="flex-1 flex flex-col overflow-hidden">
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center justify-between gap-2 mb-2">
               <span className="bg-primary/10 text-primary text-xs px-2 py-1 rounded font-medium">
                 {currentQuestion.type.toUpperCase()}
               </span>
+              <ReportDialog
+                feature="worksheet"
+                payload={{
+                  feature: "worksheet",
+                  collection_id: collectionId,
+                  question_id: currentQuestion.id,
+                  question_index: currentQuestionIndex,
+                  question_text: currentQuestion.prompt,
+                  correct_answer: currentQuestion.answer,
+                  explanation: currentQuestion.explanation,
+                }}
+              />
             </div>
             <CardTitle className="text-lg leading-relaxed">{currentQuestion.prompt}</CardTitle>
           </CardHeader>

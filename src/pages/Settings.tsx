@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { 
@@ -18,7 +19,9 @@ import {
   Brain,
   History,
   Trash2,
-  BookOpen
+  BookOpen,
+  Flag,
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -81,6 +84,16 @@ interface Collection {
   name: string;
 }
 
+interface ContentReport {
+  id: string;
+  created_at: string;
+  feature: string;
+  reason: string;
+  comment: string | null;
+  status: string;
+  payload: any;
+}
+
 const Settings = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -104,6 +117,9 @@ const Settings = () => {
   
   // Memory tricks (stored in localStorage)
   const [savedTricks, setSavedTricks] = useState<Array<{concept: string; trick: string; date: string}>>([]);
+  
+  // Reports
+  const [reports, setReports] = useState<ContentReport[]>([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -174,6 +190,18 @@ const Settings = () => {
       if (sessionsData) {
         setStudySessions(sessionsData);
       }
+      
+      // Load reports
+      const { data: reportsData } = await supabase
+        .from("content_reports")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      
+      if (reportsData) {
+        setReports(reportsData as ContentReport[]);
+      }
     } catch (error) {
       console.error("Error loading data:", error);
     }
@@ -216,6 +244,34 @@ const Settings = () => {
     toast.success("Memory trick removed");
   };
 
+  const deleteReport = async (reportId: string) => {
+    try {
+      const { error } = await supabase
+        .from("content_reports")
+        .delete()
+        .eq("id", reportId);
+      
+      if (error) throw error;
+      
+      setReports(prev => prev.filter(r => r.id !== reportId));
+      toast.success("Report deleted");
+    } catch (error) {
+      console.error("Error deleting report:", error);
+      toast.error("Failed to delete report");
+    }
+  };
+
+  const getReasonLabel = (reason: string): string => {
+    const labels: Record<string, string> = {
+      wrong_answer: "Wrong answer",
+      confusing: "Confusing",
+      off_topic: "Off-topic",
+      formatting: "Formatting",
+      inappropriate: "Other",
+    };
+    return labels[reason] || reason;
+  };
+
   const getCollectionName = (collectionId: string | null): string => {
     if (!collectionId) return "No collection";
     const col = collections.find(c => c.id === collectionId);
@@ -250,10 +306,11 @@ const Settings = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 max-w-4xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="preferences">Preferences</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="saved">Saved</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
           </TabsList>
 
           {/* Preferences Tab */}
@@ -443,6 +500,75 @@ const Settings = () => {
                             Remove
                           </Button>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Reports Tab */}
+          <TabsContent value="reports" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Flag className="h-5 w-5" />
+                  My Reports ({reports.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {reports.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Flag className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No reports submitted yet</p>
+                    <p className="text-sm">Use the report button on quiz/worksheet content to flag issues</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                    {reports.map(report => (
+                      <div key={report.id} className="p-4 bg-muted/50 rounded-lg space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="capitalize">
+                              {report.feature}
+                            </Badge>
+                            <Badge variant="secondary">
+                              {getReasonLabel(report.reason)}
+                            </Badge>
+                            <Badge 
+                              variant={report.status === "submitted" ? "default" : "outline"}
+                              className="text-xs"
+                            >
+                              {report.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(report.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        
+                        {report.comment && (
+                          <p className="text-sm text-foreground">{report.comment}</p>
+                        )}
+                        
+                        {report.payload?.question_text && (
+                          <div className="text-xs text-muted-foreground bg-background/50 p-2 rounded">
+                            <FileText className="h-3 w-3 inline mr-1" />
+                            {report.payload.question_text.substring(0, 100)}
+                            {report.payload.question_text.length > 100 && "..."}
+                          </div>
+                        )}
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => deleteReport(report.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
                       </div>
                     ))}
                   </div>
