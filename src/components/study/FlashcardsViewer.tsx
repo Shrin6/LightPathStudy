@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X, Flag } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { validateCollectionContent, filterMeaningfulCards } from "@/lib/relevanceCheck";
 import { DocumentTypeHint } from "@/pages/Study";
+import { ReportDialog } from "./ReportDialog";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
 
@@ -379,6 +380,17 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
             style={{ backfaceVisibility: 'hidden' }}
           >
             <CardContent className="flex flex-col items-center justify-center h-full p-6 md:p-8">
+              <div className="absolute top-2 right-2">
+                <ReportDialog
+                  feature="flashcards"
+                  payload={{
+                    feature: "flashcards",
+                    collection_id: collectionId,
+                    question_text: currentCard.front,
+                    correct_answer: currentCard.back,
+                  }}
+                />
+              </div>
               <div className="text-xs font-semibold text-primary mb-4 uppercase tracking-wide">
                 Question
               </div>

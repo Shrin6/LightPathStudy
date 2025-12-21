@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles, Flag } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
+import { ReportDialog, ReportPayload } from "./ReportDialog";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
 
@@ -525,7 +526,21 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-base font-medium">{currentQuestion.question}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-base font-medium flex-1">{currentQuestion.question}</p>
+            <ReportDialog
+              feature="quiz"
+              payload={{
+                feature: "quiz",
+                collection_id: collectionId,
+                question_id: currentQuestion.id,
+                question_index: currentIndex,
+                question_text: currentQuestion.question,
+                correct_answer: currentQuestion.options[currentQuestion.correctAnswer],
+                explanation: currentQuestion.explanation_correct,
+              }}
+            />
+          </div>
 
           <RadioGroup
             value={selectedAnswer?.toString()}
