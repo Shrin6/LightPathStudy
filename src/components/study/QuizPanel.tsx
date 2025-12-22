@@ -26,8 +26,11 @@ interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: number;
-  explanation_correct: string;
-  memory_hook: string;
+  explanation: {
+    correct: string;
+    incorrect: Record<string, string>;
+  };
+  memory_hook?: string;
   skill_tag: string;
 }
 
@@ -41,27 +44,38 @@ interface SkillMastery {
 const sanitizeQuizJSON = (text: string): QuizQuestion[] | null => {
   try {
     let cleaned = text.trim();
+    
+    // Remove markdown fences
     cleaned = cleaned.replace(/```json\s*/gi, "").replace(/```\s*/g, "");
     cleaned = cleaned.trim();
 
-    // Handle object wrapper
-    if (cleaned.startsWith("{")) {
-      const arrayMatch = cleaned.match(/\[\s*\{[\s\S]*\}\s*\]/);
-      if (arrayMatch) {
-        cleaned = arrayMatch[0];
-      }
+    // Try to extract JSON array using regex if direct parse fails
+    let jsonStr = cleaned;
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      jsonStr = arrayMatch[0];
     }
 
-    // Extract array
-    const firstBracket = cleaned.indexOf("[");
-    const lastBracket = cleaned.lastIndexOf("]");
-    if (firstBracket === -1 || lastBracket <= firstBracket) return null;
-    cleaned = cleaned.substring(firstBracket, lastBracket + 1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let parsed: any[];
+    try {
+      const result = JSON.parse(jsonStr);
+      parsed = Array.isArray(result) ? result : [result];
+    } catch {
+      // Try extracting from first [ to last ]
+      const firstBracket = cleaned.indexOf("[");
+      const lastBracket = cleaned.lastIndexOf("]");
+      if (firstBracket === -1 || lastBracket <= firstBracket) return null;
+      jsonStr = cleaned.substring(firstBracket, lastBracket + 1);
+      const result = JSON.parse(jsonStr);
+      parsed = Array.isArray(result) ? result : [result];
+    }
 
-    const parsed = JSON.parse(cleaned);
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    // Validate we have an array with question-like objects
+    if (!parsed || parsed.length === 0) return null;
+    if (!parsed[0] || typeof parsed[0] !== 'object' || !parsed[0].question) return null;
 
-    // Salvage valid questions with lenient parsing
+    // Validate and normalize questions
     const valid: QuizQuestion[] = [];
     for (let i = 0; i < parsed.length; i++) {
       const q = parsed[i];
@@ -70,29 +84,50 @@ const sanitizeQuizJSON = (text: string): QuizQuestion[] | null => {
       const correctAnswer = typeof q.correctAnswer === 'number' ? q.correctAnswer : 
                            typeof q.correct_answer === 'number' ? q.correct_answer : 0;
       
+      // Validate required fields
       if (
-        typeof questionText === "string" && questionText.length > 5 &&
-        Array.isArray(options) && options.length >= 2
+        typeof questionText !== "string" || questionText.length < 5 ||
+        !Array.isArray(options) || options.length !== 4
       ) {
-        // Normalize to 4 options
-        const normalizedOptions = options.slice(0, 4).map(String);
-        while (normalizedOptions.length < 4) {
-          normalizedOptions.push(`Option ${String.fromCharCode(65 + normalizedOptions.length)}`);
-        }
-        
-        valid.push({
-          id: q.id || `q${i + 1}`,
-          question: questionText,
-          options: normalizedOptions,
-          correctAnswer: Math.min(Math.max(0, correctAnswer), 3),
-          explanation_correct: q.explanation_correct || q.explanation || "No explanation provided.",
-          memory_hook: q.memory_hook || q.hint || "",
-          skill_tag: q.skill_tag || q.topic || "general"
-        });
+        console.warn(`Skipping invalid question ${i}:`, q);
+        continue;
       }
+
+      // Validate correctAnswer is 0-3
+      const normalizedCorrectAnswer = Math.min(Math.max(0, correctAnswer), 3);
+
+      // Build explanation object
+      let explanation: { correct: string; incorrect: Record<string, string> };
+      if (q.explanation && typeof q.explanation === 'object' && q.explanation.correct) {
+        explanation = {
+          correct: q.explanation.correct || "No explanation provided.",
+          incorrect: q.explanation.incorrect || {}
+        };
+      } else {
+        // Fallback for old format
+        explanation = {
+          correct: q.explanation_correct || q.explanation || "No explanation provided.",
+          incorrect: {}
+        };
+      }
+
+      // Validate explanation exists
+      if (!explanation.correct) {
+        explanation.correct = "No explanation provided.";
+      }
+
+      valid.push({
+        id: q.id || `q${i + 1}`,
+        question: questionText,
+        options: options.map(String),
+        correctAnswer: normalizedCorrectAnswer,
+        explanation,
+        memory_hook: q.memory_hook || q.hint || "",
+        skill_tag: q.skill_tag || q.topic || "general"
+      });
     }
 
-    console.log("Quiz parsing: salvaged", valid.length, "valid questions");
+    console.log("Quiz parsing: validated", valid.length, "questions from", parsed.length);
     return valid.length >= 1 ? valid : null;
   } catch (e) {
     console.error("Quiz JSON parse error:", e);
@@ -162,6 +197,36 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
         return;
       }
 
+      const quizPrompt = `Generate EXACTLY 5 multiple-choice quiz questions based on the provided study material.
+
+Return ONLY a valid JSON array with NO extra text, NO markdown fences.
+
+Each question MUST have this EXACT structure:
+[
+  {
+    "question": "question text here",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": 0,
+    "explanation": {
+      "correct": "Step-by-step explanation of why the correct answer is right",
+      "incorrect": {
+        "0": "Why option 0 is wrong (skip if this is the correct answer)",
+        "1": "Why option 1 is wrong (skip if this is the correct answer)",
+        "2": "Why option 2 is wrong (skip if this is the correct answer)",
+        "3": "Why option 3 is wrong (skip if this is the correct answer)"
+      }
+    },
+    "skill_tag": "topic_name"
+  }
+]
+
+Rules:
+- options array MUST have exactly 4 items
+- correctAnswer MUST be 0, 1, 2, or 3 (index of correct option)
+- explanation.correct MUST explain WHY the answer is correct step-by-step
+- explanation.incorrect MUST explain why EACH wrong option is wrong
+- Return ONLY the JSON array, nothing else`;
+
       const response = await fetch(`${SUPABASE_URL}/functions/v1/chat-tutor`, {
         method: "POST",
         headers: {
@@ -169,7 +234,7 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          messages: [{ role: "user", content: "Generate 5 multiple-choice quiz questions." }],
+          messages: [{ role: "user", content: quizPrompt }],
           mode: "quiz",
           collectionId,
           notes: collectionContent,
@@ -537,7 +602,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                 question_index: currentIndex,
                 question_text: currentQuestion.question,
                 correct_answer: currentQuestion.options[currentQuestion.correctAnswer],
-                explanation: currentQuestion.explanation_correct,
+                explanation: currentQuestion.explanation.correct,
               }}
             />
           </div>
@@ -602,11 +667,37 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                 </p>
               )}
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-start gap-2">
-                  <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <p className="text-sm"><strong>Why correct:</strong> {currentQuestion.explanation_correct}</p>
+                  <Lightbulb className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-green-700 dark:text-green-400 mb-1">Why the correct answer is correct:</p>
+                    <p className="text-muted-foreground">{currentQuestion.explanation.correct}</p>
+                  </div>
                 </div>
+                
+                {Object.keys(currentQuestion.explanation.incorrect).length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <XCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-700 dark:text-amber-400 mb-1">Why other options are wrong:</p>
+                      <ul className="space-y-1 text-muted-foreground">
+                        {currentQuestion.options.map((opt, idx) => {
+                          if (idx === currentQuestion.correctAnswer) return null;
+                          const reason = currentQuestion.explanation.incorrect[idx.toString()];
+                          if (!reason) return null;
+                          return (
+                            <li key={idx} className="flex gap-1">
+                              <span className="font-medium shrink-0">{String.fromCharCode(65 + idx)}:</span>
+                              <span>{reason}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
                 {currentQuestion.memory_hook && (
                   <div className="flex items-start gap-2">
                     <Brain className="h-4 w-4 text-primary mt-0.5 shrink-0" />
