@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
 import { ReportDialog, ReportPayload } from "./ReportDialog";
+import { insertLearningEvent } from "@/lib/learningEvents";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
 
@@ -289,7 +290,7 @@ Rules:
     }
   };
 
-  const handleCheckAnswer = () => {
+  const handleCheckAnswer = async () => {
     if (selectedAnswer === null) {
       toast.error("Please select an answer");
       return;
@@ -306,6 +307,20 @@ Rules:
     setIsChecked(true);
     setGeneratedMemoryTrick("");
     setShowMemoryTrick(false);
+
+    // Insert learning event
+    await insertLearningEvent(
+      collectionId,
+      isCorrect ? "QUIZ_RIGHT" : "QUIZ_WRONG",
+      currentQuestion.skill_tag || currentQuestion.question.substring(0, 100),
+      {
+        question: currentQuestion.question,
+        correctAnswer: currentQuestion.correctAnswer,
+        selectedAnswer: selectedAnswer,
+        explanation: currentQuestion.explanation?.correct || "",
+        options: currentQuestion.options,
+      }
+    );
   };
 
   const handleIdk = () => {

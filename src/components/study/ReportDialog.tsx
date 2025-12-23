@@ -22,7 +22,7 @@ import { Flag, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export type ReportFeature = "quiz" | "worksheet" | "flashcards" | "tutor";
+export type ReportFeature = "quiz" | "worksheet" | "flashcards" | "tutor" | "tutor_message";
 
 export interface ReportPayload {
   feature: ReportFeature;
@@ -37,6 +37,10 @@ export interface ReportPayload {
   displayed_content?: string;
   model_name?: string;
   source_file_ids?: string[];
+  // For tutor_message reports
+  content_type?: string;
+  content_id?: string;
+  content_text?: string;
 }
 
 interface ReportDialogProps {

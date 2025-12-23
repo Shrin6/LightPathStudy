@@ -4,8 +4,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Flag } from "lucide-react";
 import { StudyMode, DocumentTypeHint } from "@/pages/Study";
+import { ProofButtons } from "./ProofButtons";
+import { ReportDialog, ReportPayload } from "./ReportDialog";
+import { insertLearningEvent } from "@/lib/learningEvents";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
 
@@ -13,6 +16,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   images?: string[];
+  id?: string;
 }
 
 interface ChatPaneProps {
@@ -31,14 +35,12 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Scroll to bottom when messages change
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
   useEffect(() => {
-    // Load existing session when mode or collection changes
     const loadSession = async () => {
       if (!collectionId) {
         setMessages([]);
@@ -70,10 +72,11 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
         setSessionId(data.id);
         const history = data.conversation_history as any;
         if (Array.isArray(history)) {
-          setMessages(history.map((m: any) => ({
+          setMessages(history.map((m: any, idx: number) => ({
             role: m.role,
             content: m.content,
-            images: m.images
+            images: m.images,
+            id: m.id || `msg-${idx}`,
           })));
         }
       } else {
@@ -111,6 +114,42 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
     }
   };
 
+  const handleProofSignal = async (signal: "GOT_IT" | "NOT_SURE" | "CHECK_ME", msgIdx: number) => {
+    const lastAssistant = messages[msgIdx];
+    const lastUser = messages.slice(0, msgIdx).reverse().find(m => m.role === "user");
+    
+    const eventType = signal === "GOT_IT" ? "PROOF_GOT_IT" : signal === "NOT_SURE" ? "PROOF_NOT_SURE" : "PROOF_CHECK_ME";
+    
+    await insertLearningEvent(
+      collectionId,
+      eventType,
+      lastAssistant?.content?.substring(0, 100) || null,
+      {
+        lastUserMessage: lastUser?.content || "",
+        lastTutorAnswer: lastAssistant?.content || "",
+      }
+    );
+
+    if (signal === "GOT_IT") {
+      toast.success("Great! Keep going!");
+    } else if (signal === "NOT_SURE") {
+      toast.info("No worries! Let me help clarify.");
+      setInput("Can you explain that in a different way?");
+    } else if (signal === "CHECK_ME") {
+      setInput("Ask me a quick question to check my understanding of what you just explained.");
+    }
+  };
+
+  const getReportPayload = (msg: Message, msgIdx: number): ReportPayload => {
+    return {
+      feature: "tutor_message",
+      content_type: "tutor_message",
+      content_id: msg.id || `msg-${msgIdx}`,
+      content_text: msg.content,
+      collection_id: collectionId || undefined,
+    };
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -124,7 +163,6 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
       return;
     }
 
-    // PRE-FLIGHT: Get user session and access token
     const { data: { session } } = await supabase.auth.getSession();
     const accessToken = session?.access_token;
 
@@ -134,7 +172,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
       return;
     }
 
-    const userMessage: Message = { role: "user", content: input.trim() };
+    const userMessage: Message = { role: "user", content: input.trim(), id: `msg-${Date.now()}` };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput("");
@@ -207,8 +245,8 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
       let textBuffer = "";
       let streamDone = false;
 
-      // Add initial assistant message
-      const tempMessages = [...updatedMessages, { role: "assistant" as const, content: "" }];
+      const assistantId = `msg-${Date.now()}-assistant`;
+      const tempMessages = [...updatedMessages, { role: "assistant" as const, content: "", id: assistantId }];
       setMessages(tempMessages);
 
       while (!streamDone) {
@@ -241,6 +279,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
                 newMessages[newMessages.length - 1] = {
                   role: "assistant",
                   content: assistantContent,
+                  id: assistantId,
                 };
                 return newMessages;
               });
@@ -252,8 +291,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
         }
       }
 
-      // Save final conversation to database
-      const finalMessages = [...updatedMessages, { role: "assistant" as const, content: assistantContent }];
+      const finalMessages = [...updatedMessages, { role: "assistant" as const, content: assistantContent, id: assistantId }];
       setMessages(finalMessages);
       await saveSession(finalMessages);
     } catch (error: any) {
@@ -301,27 +339,48 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
           <div className="space-y-4">
             {messages.map((msg, idx) => (
               <div
-                key={idx}
+                key={msg.id || idx}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
               >
-                <div
-                  className={`max-w-[80%] p-3 rounded-lg ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                >
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  {msg.images && msg.images.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {msg.images.map((imgUrl, i) => (
-                        <img
-                          key={i}
-                          src={imgUrl}
-                          alt={`AI generated image ${i + 1}`}
-                          className="max-w-full rounded"
-                        />
-                      ))}
+                <div className="max-w-[80%]">
+                  <div
+                    className={`p-3 rounded-lg ${
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    {msg.images && msg.images.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {msg.images.map((imgUrl, i) => (
+                          <img
+                            key={i}
+                            src={imgUrl}
+                            alt={`AI generated image ${i + 1}`}
+                            className="max-w-full rounded"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {msg.role === "assistant" && !isTyping && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <ProofButtons
+                        onGotIt={() => handleProofSignal("GOT_IT", idx)}
+                        onNotSure={() => handleProofSignal("NOT_SURE", idx)}
+                        onCheckMe={() => handleProofSignal("CHECK_ME", idx)}
+                        disabled={loading}
+                      />
+                      <ReportDialog
+                        feature="tutor_message"
+                        payload={getReportPayload(msg, idx)}
+                        trigger={
+                          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7 px-2">
+                            <Flag className="h-3 w-3" />
+                          </Button>
+                        }
+                      />
                     </div>
                   )}
                 </div>
