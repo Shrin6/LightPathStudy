@@ -677,6 +677,49 @@ serve(async (req) => {
     }
 
     // =====================================================
+    // ADAPTIVE LEARNING: Fetch recent learning events
+    // =====================================================
+    let learningProfile = '';
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: learningEvents, error: leError } = await supabaseClient
+        .from('learning_events')
+        .select('event_type, concept, payload, created_at')
+        .eq('user_id', user.id)
+        .eq('collection_id', collectionId)
+        .gte('created_at', sevenDaysAgo)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (!leError && learningEvents && learningEvents.length > 0) {
+        const weakAreas: string[] = [];
+        const strongAreas: string[] = [];
+
+        for (const event of learningEvents) {
+          const concept = event.concept || (event.payload as any)?.question?.substring(0, 50) || 'unknown';
+          if (event.event_type === 'QUIZ_WRONG' || event.event_type === 'PROOF_NOT_SURE') {
+            if (!weakAreas.includes(concept)) weakAreas.push(concept);
+          } else if (event.event_type === 'QUIZ_RIGHT' || event.event_type === 'PROOF_GOT_IT') {
+            if (!strongAreas.includes(concept)) strongAreas.push(concept);
+          }
+        }
+
+        if (weakAreas.length > 0 || strongAreas.length > 0) {
+          learningProfile = `
+LEARNING PROFILE (from recent study sessions):
+- Weak areas (needs practice): ${weakAreas.length > 0 ? weakAreas.slice(0, 3).join(', ') : 'None identified'}
+- Strong areas: ${strongAreas.length > 0 ? strongAreas.slice(0, 3).join(', ') : 'None identified'}
+
+ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, or flashcards, start your response by asking ONE short follow-up question targeting their top weak area to reinforce learning. Be encouraging and supportive.
+`;
+          console.log('chat-tutor: Learning profile generated with', weakAreas.length, 'weak areas,', strongAreas.length, 'strong areas');
+        }
+      }
+    } catch (leErr) {
+      console.log('chat-tutor: Error fetching learning events (non-fatal):', leErr);
+    }
+
+    // =====================================================
     // CONTEXT RETRIEVAL WITH GRACEFUL FALLBACKS
     // Priority: VECTOR_SEARCH (OpenRouter) > CHUNKS_FALLBACK > PARSED_CONTENT_FALLBACK
     // =====================================================
@@ -862,7 +905,7 @@ serve(async (req) => {
     const fullContext = `
 DOCUMENT TYPE HINT: ${docTypeHint}
 MODE: ${mode}
-
+${learningProfile}
 STUDY MATERIALS (User's uploaded notes):
 ${collectionContext}
     `;

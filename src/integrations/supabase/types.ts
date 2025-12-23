@@ -160,6 +160,44 @@ export type Database = {
           },
         ]
       }
+      learning_events: {
+        Row: {
+          collection_id: string | null
+          concept: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          collection_id?: string | null
+          concept?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          collection_id?: string | null
+          concept?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_events_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
