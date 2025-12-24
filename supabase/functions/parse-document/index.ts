@@ -485,6 +485,239 @@ function extractPDFText(arrayBuffer: ArrayBuffer): string {
   }
 }
 
+// =====================================================
+// PPTX TEXT EXTRACTION: ZIP → slide XML → <a:t> text runs
+// =====================================================
+async function extractPptxText(uint8Array: Uint8Array): Promise<string> {
+  const slides: { slideNum: number; text: string }[] = [];
+  let offset = 0;
+  const data = uint8Array;
+  const dataLength = data.length;
+
+  console.log(`extractPptxText: Starting extraction, file size: ${dataLength} bytes`);
+
+  // Walk through ZIP local file headers
+  while (offset < dataLength - 30) {
+    // Check for local file header signature: 0x04034B50 (little-endian: 50 4B 03 04)
+    if (data[offset] !== 0x50 || data[offset + 1] !== 0x4B || 
+        data[offset + 2] !== 0x03 || data[offset + 3] !== 0x04) {
+      offset++;
+      continue;
+    }
+
+    // Parse local file header
+    const compressionMethod = data[offset + 8] | (data[offset + 9] << 8);
+    const compressedSize = data[offset + 18] | (data[offset + 19] << 8) | 
+                          (data[offset + 20] << 16) | (data[offset + 21] << 24);
+    const uncompressedSize = data[offset + 22] | (data[offset + 23] << 8) | 
+                            (data[offset + 24] << 16) | (data[offset + 25] << 24);
+    const fileNameLength = data[offset + 26] | (data[offset + 27] << 8);
+    const extraFieldLength = data[offset + 28] | (data[offset + 29] << 8);
+
+    if (fileNameLength === 0 || fileNameLength > 500) {
+      offset++;
+      continue;
+    }
+
+    const fileNameBytes = data.subarray(offset + 30, offset + 30 + fileNameLength);
+    const fileName = new TextDecoder("utf-8", { fatal: false }).decode(fileNameBytes);
+    
+    const dataStart = offset + 30 + fileNameLength + extraFieldLength;
+    const dataEnd = dataStart + compressedSize;
+
+    // Check if this is a slide XML file (ppt/slides/slide<N>.xml)
+    const slideMatch = fileName.match(/^ppt\/slides\/slide(\d+)\.xml$/);
+    
+    if (slideMatch && dataEnd <= dataLength) {
+      const slideNum = parseInt(slideMatch[1], 10);
+      const compressedData = data.subarray(dataStart, dataEnd);
+      
+      console.log(`extractPptxText: Found slide xml: ${fileName}, compression: ${compressionMethod}, bytes: ${compressedSize}`);
+
+      try {
+        let xmlContent: string;
+
+        if (compressionMethod === 0) {
+          // Stored (no compression)
+          xmlContent = new TextDecoder("utf-8", { fatal: false }).decode(compressedData);
+        } else if (compressionMethod === 8) {
+          // Deflate compression
+          const ds = new DecompressionStream("deflate-raw");
+          const writer = ds.writable.getWriter();
+          const reader = ds.readable.getReader();
+          
+          writer.write(new Uint8Array(compressedData));
+          writer.close();
+          
+          const chunks: Uint8Array[] = [];
+          let done = false;
+          while (!done) {
+            const result = await reader.read();
+            if (result.done) {
+              done = true;
+            } else {
+              chunks.push(result.value);
+            }
+          }
+          
+          const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+          const decompressed = new Uint8Array(totalLength);
+          let pos = 0;
+          for (const chunk of chunks) {
+            decompressed.set(chunk, pos);
+            pos += chunk.length;
+          }
+          
+          xmlContent = new TextDecoder("utf-8", { fatal: false }).decode(decompressed);
+        } else {
+          console.log(`extractPptxText: Unsupported compression method ${compressionMethod} for ${fileName}`);
+          offset = dataEnd;
+          continue;
+        }
+
+        // Extract text from <a:t> tags
+        const textRuns: string[] = [];
+        const atMatches = xmlContent.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+        for (const match of atMatches) {
+          const text = match[1].trim();
+          if (text) {
+            textRuns.push(text);
+          }
+        }
+
+        if (textRuns.length > 0) {
+          slides.push({ slideNum, text: textRuns.join(" ") });
+        }
+      } catch (decompressionError) {
+        console.warn(`extractPptxText: Failed to decompress ${fileName}:`, decompressionError);
+      }
+    }
+
+    // Move to next entry
+    offset = dataEnd > offset ? dataEnd : offset + 1;
+  }
+
+  // Sort slides by number and join
+  slides.sort((a, b) => a.slideNum - b.slideNum);
+  const fullText = slides.map(s => `[Slide ${s.slideNum}]\n${s.text}`).join("\n\n");
+  
+  console.log(`extractPptxText: Extracted slides: ${slides.length}, total text length: ${fullText.length}`);
+  
+  return fullText;
+}
+
+// =====================================================
+// DOCX TEXT EXTRACTION: ZIP → document.xml → <w:t> text runs
+// =====================================================
+async function extractDocxText(uint8Array: Uint8Array): Promise<string> {
+  let offset = 0;
+  const data = uint8Array;
+  const dataLength = data.length;
+
+  console.log(`extractDocxText: Starting extraction, file size: ${dataLength} bytes`);
+
+  // Walk through ZIP local file headers
+  while (offset < dataLength - 30) {
+    // Check for local file header signature
+    if (data[offset] !== 0x50 || data[offset + 1] !== 0x4B || 
+        data[offset + 2] !== 0x03 || data[offset + 3] !== 0x04) {
+      offset++;
+      continue;
+    }
+
+    const compressionMethod = data[offset + 8] | (data[offset + 9] << 8);
+    const compressedSize = data[offset + 18] | (data[offset + 19] << 8) | 
+                          (data[offset + 20] << 16) | (data[offset + 21] << 24);
+    const fileNameLength = data[offset + 26] | (data[offset + 27] << 8);
+    const extraFieldLength = data[offset + 28] | (data[offset + 29] << 8);
+
+    if (fileNameLength === 0 || fileNameLength > 500) {
+      offset++;
+      continue;
+    }
+
+    const fileNameBytes = data.subarray(offset + 30, offset + 30 + fileNameLength);
+    const fileName = new TextDecoder("utf-8", { fatal: false }).decode(fileNameBytes);
+    
+    const dataStart = offset + 30 + fileNameLength + extraFieldLength;
+    const dataEnd = dataStart + compressedSize;
+
+    // Look for word/document.xml
+    if (fileName === "word/document.xml" && dataEnd <= dataLength) {
+      const compressedData = data.subarray(dataStart, dataEnd);
+      
+      console.log(`extractDocxText: Found document.xml, compression: ${compressionMethod}, bytes: ${compressedSize}`);
+
+      try {
+        let xmlContent: string;
+
+        if (compressionMethod === 0) {
+          xmlContent = new TextDecoder("utf-8", { fatal: false }).decode(compressedData);
+        } else if (compressionMethod === 8) {
+          const ds = new DecompressionStream("deflate-raw");
+          const writer = ds.writable.getWriter();
+          const reader = ds.readable.getReader();
+          
+          writer.write(new Uint8Array(compressedData));
+          writer.close();
+          
+          const chunks: Uint8Array[] = [];
+          let done = false;
+          while (!done) {
+            const result = await reader.read();
+            if (result.done) {
+              done = true;
+            } else {
+              chunks.push(result.value);
+            }
+          }
+          
+          const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+          const decompressed = new Uint8Array(totalLength);
+          let pos = 0;
+          for (const chunk of chunks) {
+            decompressed.set(chunk, pos);
+            pos += chunk.length;
+          }
+          
+          xmlContent = new TextDecoder("utf-8", { fatal: false }).decode(decompressed);
+        } else {
+          console.log(`extractDocxText: Unsupported compression method ${compressionMethod}`);
+          return "";
+        }
+
+        // Extract text from <w:t> tags with paragraph breaks
+        const paragraphs: string[] = [];
+        const pMatches = xmlContent.matchAll(/<w:p[^>]*>([\s\S]*?)<\/w:p>/g);
+        
+        for (const pMatch of pMatches) {
+          const pContent = pMatch[1];
+          const textRuns: string[] = [];
+          const wtMatches = pContent.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+          for (const tMatch of wtMatches) {
+            textRuns.push(tMatch[1]);
+          }
+          if (textRuns.length > 0) {
+            paragraphs.push(textRuns.join(""));
+          }
+        }
+
+        const fullText = paragraphs.join("\n\n");
+        console.log(`extractDocxText: Extracted paragraphs: ${paragraphs.length}, total text length: ${fullText.length}`);
+        return fullText;
+      } catch (decompressionError) {
+        console.warn(`extractDocxText: Failed to decompress document.xml:`, decompressionError);
+        return "";
+      }
+    }
+
+    offset = dataEnd > offset ? dataEnd : offset + 1;
+  }
+
+  console.log("extractDocxText: document.xml not found in DOCX");
+  return "";
+}
+
 // Get MIME type for images
 function getImageMimeType(fileType: string): string {
   if (fileType.includes("png")) return "image/png";
@@ -643,11 +876,28 @@ serve(async (req) => {
     let docKind = "TEXT_PAGE";
     const fileType = fileData.file_type.toLowerCase();
 
-    try {
-      if (fileType.includes("pptx")) {
-        const text = await fileBlob.text();
-        parsedContent = sanitizeText(text.substring(0, 5000));
-        console.log("PPTX extracted (standard)");
+  try {
+      if (fileType.includes("pptx") || fileType.includes("presentationml")) {
+        // =====================================================
+        // PPTX PARSING: Extract text from ZIP → slide XML
+        // =====================================================
+        console.log("parse-document: Processing PPTX with native ZIP extraction...");
+        const arrayBuffer = await fileBlob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        try {
+          const extractedText = await extractPptxText(uint8Array);
+          parsedContent = sanitizeText(extractedText);
+          console.log(`parse-document: PPTX extracted length after sanitize: ${parsedContent.length}`);
+          
+          if (parsedContent.length < 50) {
+            parsedContent = "PPTX contains no extractable text (may be images-only). For best results, export slides to PDF or upload slide images directly.";
+            console.log("parse-document: PPTX appears to be images-only");
+          }
+        } catch (pptxError) {
+          console.error("parse-document: PPTX extraction failed:", pptxError);
+          parsedContent = `PPTX parsing encountered an error: ${pptxError instanceof Error ? pptxError.message : "Unknown error"}. Try exporting to PDF.`;
+        }
       } else if (fileType.includes("pdf")) {
         const arrayBuffer = await fileBlob.arrayBuffer();
         const pageCount = countPDFPages(arrayBuffer);
@@ -689,9 +939,26 @@ serve(async (req) => {
       } else if (fileType.includes("text") || fileType.includes("txt")) {
         parsedContent = await fileBlob.text();
         parsedContent = sanitizeText(parsedContent);
-      } else if (fileType.includes("docx")) {
-        const text = await fileBlob.text();
-        parsedContent = sanitizeText(text.substring(0, 5000));
+      } else if (fileType.includes("docx") || fileType.includes("wordprocessingml")) {
+        // =====================================================
+        // DOCX PARSING: Extract text from ZIP → document.xml
+        // =====================================================
+        console.log("parse-document: Processing DOCX with native ZIP extraction...");
+        const arrayBuffer = await fileBlob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        try {
+          const extractedText = await extractDocxText(uint8Array);
+          parsedContent = sanitizeText(extractedText);
+          console.log(`parse-document: DOCX extracted length after sanitize: ${parsedContent.length}`);
+          
+          if (parsedContent.length < 50) {
+            parsedContent = "DOCX contains no extractable text. The document may be empty or contain only images.";
+          }
+        } catch (docxError) {
+          console.error("parse-document: DOCX extraction failed:", docxError);
+          parsedContent = `DOCX parsing encountered an error: ${docxError instanceof Error ? docxError.message : "Unknown error"}.`;
+        }
       } else if (fileType.includes("image")) {
         // =====================================================
         // IMAGE PROCESSING: Use Vision API (NO Tesseract)
