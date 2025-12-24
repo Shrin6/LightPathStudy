@@ -20,7 +20,7 @@ const Index = () => {
             
             <h1 className="text-5xl md:text-6xl font-bold text-foreground leading-tight">
               Learn Smarter with
-              <span className="bg-gradient-primary bg-clip-text text-transparent"> StudyBuddy AI</span>
+              <span className="bg-gradient-primary bg-clip-text text-transparent"> Lightpath Study</span>
             </h1>
             
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -53,7 +53,7 @@ const Index = () => {
               Everything You Need to Master Any Subject
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              StudyBuddy AI works exclusively from your uploaded materials—no random facts, just your course content.
+              Lightpath Study works exclusively from your uploaded materials—no random facts, just your course content.
             </p>
           </div>
 
@@ -141,7 +141,7 @@ const Index = () => {
               <div>
                 <h3 className="text-2xl font-semibold text-foreground mb-2">Upload Your Materials</h3>
                 <p className="text-muted-foreground text-lg">
-                  Drop in your lecture slides, textbook PDFs, or handwritten notes. StudyBuddy reads and organizes everything.
+                  Drop in your lecture slides, textbook PDFs, or handwritten notes. Light reads and organizes everything.
                 </p>
               </div>
             </div>
@@ -165,7 +165,7 @@ const Index = () => {
               <div>
                 <h3 className="text-2xl font-semibold text-foreground mb-2">Learn at Your Own Pace</h3>
                 <p className="text-muted-foreground text-lg">
-                  Go slow when you need to, repeat concepts, get corrections. StudyBuddy never rushes you.
+                  Go slow when you need to, repeat concepts, get corrections. Light never rushes you.
                 </p>
               </div>
             </div>
@@ -201,7 +201,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-8 px-4 border-t border-border">
         <div className="container mx-auto text-center text-muted-foreground">
-          <p>© 2024 StudyBuddy AI. Your patient, personal study companion.</p>
+          <p>© 2024 Lightpath Study. Your patient, personal study companion.</p>
         </div>
       </footer>
     </div>

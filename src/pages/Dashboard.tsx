@@ -286,7 +286,7 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="h-14 border-b bg-card flex items-center justify-between px-4">
-        <h1 className="text-lg font-semibold">StudyBuddy AI</h1>
+        <h1 className="text-lg font-semibold">Lightpath Study</h1>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
             <Settings className="h-4 w-4" />
