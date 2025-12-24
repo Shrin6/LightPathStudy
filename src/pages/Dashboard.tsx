@@ -21,6 +21,8 @@ import {
   BookMarked
 } from "lucide-react";
 import { toast } from "sonner";
+import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
+import lightpathLogo from "@/assets/lightpath-logo.png";
 
 // Bible quotes with meanings
 const BIBLE_QUOTES = [
@@ -286,8 +288,12 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="h-14 border-b bg-card flex items-center justify-between px-4">
-        <h1 className="text-lg font-semibold">Lightpath Study</h1>
         <div className="flex items-center gap-2">
+          <img src={lightpathLogo} alt="Lightpath Study" className="w-8 h-8 rounded" />
+          <h1 className="text-lg font-semibold">Lightpath Study</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <FeedbackDialog userId={session.user.id} />
           <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
             <Settings className="h-4 w-4" />
           </Button>

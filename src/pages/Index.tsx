@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BookOpen, Brain, FileText, Sparkles, Upload, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import lightpathLogo from "@/assets/lightpath-logo.png";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -13,6 +14,9 @@ const Index = () => {
         <div className="absolute inset-0 bg-gradient-primary opacity-10"></div>
         <div className="container mx-auto px-4 py-20 relative">
           <div className="max-w-4xl mx-auto text-center space-y-8">
+            <div className="flex justify-center mb-4">
+              <img src={lightpathLogo} alt="Lightpath Study" className="w-24 h-24 rounded-xl" />
+            </div>
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary font-medium text-sm">
               <Sparkles className="w-4 h-4" />
               Your Personal AI Study Tutor

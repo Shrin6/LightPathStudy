@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { BookOpen } from "lucide-react";
+import lightpathLogo from "@/assets/lightpath-logo.png";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -70,9 +70,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <BookOpen className="h-8 w-8 text-primary" />
-            </div>
+            <img src={lightpathLogo} alt="Lightpath Study" className="w-16 h-16 rounded-lg" />
           </div>
           <CardTitle className="text-2xl">Lightpath Study</CardTitle>
           <CardDescription>
