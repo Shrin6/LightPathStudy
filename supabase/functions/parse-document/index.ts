@@ -486,7 +486,295 @@ function extractPDFText(arrayBuffer: ArrayBuffer): string {
 }
 
 // =====================================================
-// PPTX TEXT EXTRACTION: ZIP → slide XML → <a:t> text runs
+// ZIP HELPER: Extract a file from ZIP by path
+// =====================================================
+async function extractZipEntry(uint8Array: Uint8Array, targetPath: string): Promise<Uint8Array | null> {
+  let offset = 0;
+  const data = uint8Array;
+  const dataLength = data.length;
+
+  while (offset < dataLength - 30) {
+    if (data[offset] !== 0x50 || data[offset + 1] !== 0x4B || 
+        data[offset + 2] !== 0x03 || data[offset + 3] !== 0x04) {
+      offset++;
+      continue;
+    }
+
+    const compressionMethod = data[offset + 8] | (data[offset + 9] << 8);
+    const compressedSize = data[offset + 18] | (data[offset + 19] << 8) | 
+                          (data[offset + 20] << 16) | (data[offset + 21] << 24);
+    const fileNameLength = data[offset + 26] | (data[offset + 27] << 8);
+    const extraFieldLength = data[offset + 28] | (data[offset + 29] << 8);
+
+    if (fileNameLength === 0 || fileNameLength > 500) {
+      offset++;
+      continue;
+    }
+
+    const fileNameBytes = data.subarray(offset + 30, offset + 30 + fileNameLength);
+    const fileName = new TextDecoder("utf-8", { fatal: false }).decode(fileNameBytes);
+    
+    const dataStart = offset + 30 + fileNameLength + extraFieldLength;
+    const dataEnd = dataStart + compressedSize;
+
+    if (fileName === targetPath && dataEnd <= dataLength) {
+      const compressedData = data.subarray(dataStart, dataEnd);
+
+      if (compressionMethod === 0) {
+        return compressedData;
+      } else if (compressionMethod === 8) {
+        try {
+          const ds = new DecompressionStream("deflate-raw");
+          const writer = ds.writable.getWriter();
+          const reader = ds.readable.getReader();
+          
+          writer.write(new Uint8Array(compressedData));
+          writer.close();
+          
+          const chunks: Uint8Array[] = [];
+          let done = false;
+          while (!done) {
+            const result = await reader.read();
+            if (result.done) {
+              done = true;
+            } else {
+              chunks.push(result.value);
+            }
+          }
+          
+          const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+          const decompressed = new Uint8Array(totalLength);
+          let pos = 0;
+          for (const chunk of chunks) {
+            decompressed.set(chunk, pos);
+            pos += chunk.length;
+          }
+          return decompressed;
+        } catch (e) {
+          console.warn(`extractZipEntry: Decompression failed for ${targetPath}:`, e);
+          return null;
+        }
+      }
+    }
+
+    offset = dataEnd > offset ? dataEnd : offset + 1;
+  }
+  return null;
+}
+
+// =====================================================
+// PPTX SLIDE INFO EXTRACTION: Detect text + images per slide
+// =====================================================
+interface PptxSlideInfo {
+  slideNum: number;
+  text: string;
+  mediaFiles: string[];
+  hasImages: boolean;
+}
+
+interface PptxContent {
+  slideCount: number;
+  hasAnyImages: boolean;
+  slides: PptxSlideInfo[];
+}
+
+async function extractPptxSlides(uint8Array: Uint8Array): Promise<PptxContent> {
+  const slides: PptxSlideInfo[] = [];
+  const slideXmlPaths: string[] = [];
+  const relsXmlPaths: string[] = [];
+  
+  let offset = 0;
+  const data = uint8Array;
+  const dataLength = data.length;
+
+  console.log(`extractPptxSlides: Scanning PPTX, file size: ${dataLength} bytes`);
+
+  // First pass: collect all slide and rels file paths
+  while (offset < dataLength - 30) {
+    if (data[offset] !== 0x50 || data[offset + 1] !== 0x4B || 
+        data[offset + 2] !== 0x03 || data[offset + 3] !== 0x04) {
+      offset++;
+      continue;
+    }
+
+    const compressedSize = data[offset + 18] | (data[offset + 19] << 8) | 
+                          (data[offset + 20] << 16) | (data[offset + 21] << 24);
+    const fileNameLength = data[offset + 26] | (data[offset + 27] << 8);
+    const extraFieldLength = data[offset + 28] | (data[offset + 29] << 8);
+
+    if (fileNameLength === 0 || fileNameLength > 500) {
+      offset++;
+      continue;
+    }
+
+    const fileNameBytes = data.subarray(offset + 30, offset + 30 + fileNameLength);
+    const fileName = new TextDecoder("utf-8", { fatal: false }).decode(fileNameBytes);
+    
+    const dataStart = offset + 30 + fileNameLength + extraFieldLength;
+    const dataEnd = dataStart + compressedSize;
+
+    // Collect slide XML paths
+    if (fileName.match(/^ppt\/slides\/slide\d+\.xml$/)) {
+      slideXmlPaths.push(fileName);
+    }
+    // Collect relationship XML paths
+    if (fileName.match(/^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/)) {
+      relsXmlPaths.push(fileName);
+    }
+
+    offset = dataEnd > offset ? dataEnd : offset + 1;
+  }
+
+  console.log(`extractPptxSlides: Found ${slideXmlPaths.length} slides, ${relsXmlPaths.length} rels files`);
+
+  // Process each slide
+  for (const slideXmlPath of slideXmlPaths) {
+    const slideMatch = slideXmlPath.match(/slide(\d+)\.xml$/);
+    if (!slideMatch) continue;
+    
+    const slideNum = parseInt(slideMatch[1], 10);
+    const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`;
+    
+    // Extract slide XML for text
+    const slideXmlBytes = await extractZipEntry(uint8Array, slideXmlPath);
+    let slideText = "";
+    
+    if (slideXmlBytes) {
+      const xmlContent = new TextDecoder("utf-8", { fatal: false }).decode(slideXmlBytes);
+      const textRuns: string[] = [];
+      const atMatches = xmlContent.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g);
+      for (const match of atMatches) {
+        const text = match[1].trim();
+        if (text) {
+          textRuns.push(text);
+        }
+      }
+      slideText = textRuns.join(" ");
+    }
+    
+    // Extract rels XML for media references
+    const mediaFiles: string[] = [];
+    const relsBytes = await extractZipEntry(uint8Array, relsPath);
+    
+    if (relsBytes) {
+      const relsContent = new TextDecoder("utf-8", { fatal: false }).decode(relsBytes);
+      // Find media references like Target="../media/image1.png"
+      const mediaMatches = relsContent.matchAll(/Target="\.\.\/media\/([^"]+)"/g);
+      for (const match of mediaMatches) {
+        const mediaFile = `ppt/media/${match[1]}`;
+        mediaFiles.push(mediaFile);
+      }
+    }
+    
+    slides.push({
+      slideNum,
+      text: slideText,
+      mediaFiles,
+      hasImages: mediaFiles.length > 0
+    });
+  }
+
+  // Sort by slide number
+  slides.sort((a, b) => a.slideNum - b.slideNum);
+  
+  const hasAnyImages = slides.some(s => s.hasImages);
+  const totalImages = slides.reduce((acc, s) => acc + s.mediaFiles.length, 0);
+  
+  console.log(`extractPptxSlides: Processed ${slides.length} slides, hasAnyImages=${hasAnyImages}, totalImages=${totalImages}`);
+
+  return {
+    slideCount: slides.length,
+    hasAnyImages,
+    slides
+  };
+}
+
+// =====================================================
+// PPTX IMAGE ANALYSIS: Vision API for diagrams
+// =====================================================
+async function analyzePptxImageWithVision(imageBase64: string, mimeType: string): Promise<{
+  type: string;
+  extracted_text: string;
+  description: string;
+  key_points: string[];
+  labels: { label: string; meaning: string }[];
+}> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not found");
+
+  const visionPrompt = `You are a document/diagram understanding assistant.
+Analyze the image and return ONLY valid JSON:
+{
+  "type": "DIAGRAM" | "TEXT_SCREENSHOT" | "MIXED",
+  "extracted_text": "",
+  "description": "",
+  "key_points": ["", ""],
+  "labels": [{"label":"", "meaning":""}]
+}
+
+Rules:
+- If the image is a diagram/flow/biology figure: explain what it shows (relationships, arrows, stages).
+- If the image contains text: include it in extracted_text (best-effort).
+- Do not hallucinate unreadable text; extract what is visible.
+- Be helpful and accurate; no markdown; JSON only.`;
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: visionPrompt },
+            {
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+            },
+          ],
+        },
+      ],
+      max_tokens: 4000,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    console.error("PPTX Vision API error:", response.status, errorText.substring(0, 200));
+    throw new Error(`Vision analysis failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || "";
+
+  let cleanContent = content.trim();
+  if (cleanContent.startsWith("```json")) {
+    cleanContent = cleanContent.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+  }
+  if (cleanContent.startsWith("```")) {
+    cleanContent = cleanContent.replace(/```\n?/g, "");
+  }
+
+  try {
+    return JSON.parse(cleanContent);
+  } catch (parseError) {
+    console.warn("PPTX Vision JSON parse failed, using raw content");
+    return {
+      type: "MIXED",
+      extracted_text: "",
+      description: cleanContent.substring(0, 500),
+      key_points: [],
+      labels: []
+    };
+  }
+}
+
+// =====================================================
+// PPTX TEXT EXTRACTION (legacy helper, still used for text-only path)
 // =====================================================
 async function extractPptxText(uint8Array: Uint8Array): Promise<string> {
   const slides: { slideNum: number; text: string }[] = [];
@@ -879,20 +1167,119 @@ serve(async (req) => {
   try {
       if (fileType.includes("pptx") || fileType.includes("presentationml")) {
         // =====================================================
-        // PPTX PARSING: Extract text from ZIP → slide XML
+        // PPTX PARSING: Text + Vision for images/diagrams
         // =====================================================
-        console.log("parse-document: Processing PPTX with native ZIP extraction...");
+        console.log("parse-document: Processing PPTX with text + vision pipeline...");
         const arrayBuffer = await fileBlob.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
         
         try {
-          const extractedText = await extractPptxText(uint8Array);
-          parsedContent = sanitizeText(extractedText);
-          console.log(`parse-document: PPTX extracted length after sanitize: ${parsedContent.length}`);
+          // Phase 1: Detect content
+          const pptxContent = await extractPptxSlides(uint8Array);
+          
+          console.log(`parse-document: PPTX strategy = ${pptxContent.hasAnyImages ? "TEXT_PLUS_VISION" : "TEXT_ONLY"}`);
+          
+          const MAX_VISION_CALLS = 5;
+          let imagesAnalyzed = 0;
+          let imagesSkipped = 0;
+          const contentSections: string[] = [];
+          
+          // Phase 2: Process each slide
+          for (const slide of pptxContent.slides) {
+            let slideContent = `\n--- SLIDE ${slide.slideNum} ---\n`;
+            
+            // Add text content
+            if (slide.text.trim()) {
+              slideContent += `TEXT:\n${slide.text}\n`;
+            }
+            
+            // Process images if present (up to MAX_VISION_CALLS total)
+            if (slide.hasImages && imagesAnalyzed < MAX_VISION_CALLS) {
+              slideContent += `\nIMAGES:\n`;
+              
+              for (const mediaPath of slide.mediaFiles) {
+                if (imagesAnalyzed >= MAX_VISION_CALLS) {
+                  imagesSkipped++;
+                  continue;
+                }
+                
+                try {
+                  // Extract image bytes
+                  const imageBytes = await extractZipEntry(uint8Array, mediaPath);
+                  if (!imageBytes || imageBytes.length < 100) {
+                    console.log(`parse-document: Skipping small/empty image: ${mediaPath}`);
+                    continue;
+                  }
+                  
+                  // Determine MIME type
+                  const ext = mediaPath.toLowerCase().split('.').pop() || '';
+                  let mimeType = "image/png";
+                  if (ext === "jpg" || ext === "jpeg") mimeType = "image/jpeg";
+                  else if (ext === "gif") mimeType = "image/gif";
+                  else if (ext === "webp") mimeType = "image/webp";
+                  
+                  // Convert to base64
+                  let base64 = "";
+                  const chunkSize = 32768;
+                  for (let i = 0; i < imageBytes.length; i += chunkSize) {
+                    const chunk = imageBytes.subarray(i, i + chunkSize);
+                    base64 += String.fromCharCode.apply(null, Array.from(chunk));
+                  }
+                  base64 = btoa(base64);
+                  
+                  console.log(`parse-document: Analyzing image ${imagesAnalyzed + 1}/${MAX_VISION_CALLS}: ${mediaPath} (${imageBytes.length} bytes)`);
+                  
+                  // Call Vision API
+                  const imageAnalysis = await analyzePptxImageWithVision(base64, mimeType);
+                  imagesAnalyzed++;
+                  
+                  slideContent += `- Image (type=${imageAnalysis.type}):\n`;
+                  if (imageAnalysis.extracted_text) {
+                    slideContent += `  Extracted text: ${imageAnalysis.extracted_text}\n`;
+                  }
+                  if (imageAnalysis.description) {
+                    slideContent += `  Meaning: ${imageAnalysis.description}\n`;
+                  }
+                  if (imageAnalysis.key_points && imageAnalysis.key_points.length > 0) {
+                    slideContent += `  Key points: ${imageAnalysis.key_points.join("; ")}\n`;
+                  }
+                  if (imageAnalysis.labels && imageAnalysis.labels.length > 0) {
+                    const labelStr = imageAnalysis.labels.map(l => `${l.label}: ${l.meaning}`).join("; ");
+                    slideContent += `  Labels: ${labelStr}\n`;
+                  }
+                } catch (imgError) {
+                  console.warn(`parse-document: Image analysis failed for ${mediaPath}:`, imgError);
+                  slideContent += `- Image analysis failed for ${mediaPath.split('/').pop()}\n`;
+                }
+              }
+            } else if (slide.hasImages) {
+              imagesSkipped += slide.mediaFiles.length;
+            }
+            
+            contentSections.push(slideContent);
+          }
+          
+          // Build final content
+          parsedContent = contentSections.join("\n");
+          
+          if (imagesSkipped > 0) {
+            parsedContent += `\n\n[Note: Skipped ${imagesSkipped} additional images to control processing time/cost.]`;
+          }
+          
+          parsedContent = sanitizeText(parsedContent);
+          
+          console.log(`parse-document: PPTX complete - slides: ${pptxContent.slideCount}, imagesAnalyzed: ${imagesAnalyzed}, imagesSkipped: ${imagesSkipped}`);
+          console.log(`parse-document: PPTX parsed_content length: ${parsedContent.length}`);
+          
+          // Set document mode for vision content
+          if (imagesAnalyzed > 0) {
+            documentMode = "vision";
+            docKind = "MIXED";
+          }
           
           if (parsedContent.length < 50) {
-            parsedContent = "PPTX contains no extractable text (may be images-only). For best results, export slides to PDF or upload slide images directly.";
-            console.log("parse-document: PPTX appears to be images-only");
+            parsedContent = "PPTX contains no extractable content. The presentation may be empty or contain only unsupported media types.";
+            console.log("parse-document: PPTX appears empty");
           }
         } catch (pptxError) {
           console.error("parse-document: PPTX extraction failed:", pptxError);
