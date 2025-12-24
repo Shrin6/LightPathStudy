@@ -350,7 +350,15 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
                         : "bg-muted"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <div 
+                      className="text-sm whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none [&>p]:m-0"
+                      dangerouslySetInnerHTML={{ 
+                        __html: msg.content
+                          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                          .replace(/^- /gm, '• ')
+                      }} 
+                    />
                     {msg.images && msg.images.length > 0 && (
                       <div className="mt-2 space-y-2">
                         {msg.images.map((imgUrl, i) => (
