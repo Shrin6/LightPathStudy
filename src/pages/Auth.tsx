@@ -44,7 +44,7 @@ const Auth = () => {
         });
 
         if (error) throw error;
-        toast.success("Welcome back to StudyBuddy!");
+        toast.success("Welcome back to Lightpath!");
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -74,7 +74,7 @@ const Auth = () => {
               <BookOpen className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">StudyBuddy AI</CardTitle>
+          <CardTitle className="text-2xl">Lightpath Study</CardTitle>
           <CardDescription>
             {isLogin ? "Sign in to continue learning" : "Create your account to get started"}
           </CardDescription>

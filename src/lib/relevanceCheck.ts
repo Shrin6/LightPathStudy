@@ -1,5 +1,5 @@
 /**
- * Relevance Check System for StudyBuddy AI
+ * Relevance Check System for Lightpath Study
  * Classifies user intent and validates content for flashcard generation
  */
 
