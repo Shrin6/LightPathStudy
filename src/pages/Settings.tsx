@@ -94,16 +94,13 @@ interface ContentReport {
   payload: any;
 }
 
-// DEV_MODE: Set to true to bypass auth for testing
-const DEV_MODE = true;
-
 const Settings = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "preferences";
   
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(!DEV_MODE);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(initialTab);
   
   // Preferences
@@ -125,11 +122,6 @@ const Settings = () => {
   const [reports, setReports] = useState<ContentReport[]>([]);
 
   useEffect(() => {
-    if (DEV_MODE) {
-      setLoading(false);
-      return;
-    }
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         navigate("/auth");

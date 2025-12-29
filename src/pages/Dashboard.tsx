@@ -11,74 +11,73 @@ import {
   Brain, 
   FileText, 
   Heart, 
+  LogOut, 
   Sparkles, 
   TrendingUp,
   Clock,
   FolderOpen,
   ArrowRight,
-  BookMarked,
-  Zap,
-  Upload,
-  GraduationCap
+  Settings,
+  BookMarked
 } from "lucide-react";
 import { toast } from "sonner";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
-import { AppShell } from "@/components/layout/AppShell";
+import lightpathLogo from "@/assets/lightpath-logo.png";
 
+// Bible quotes with meanings
 const BIBLE_QUOTES = [
   {
     id: "1",
     text: "For I know the plans I have for you, declares the LORD, plans for welfare and not for evil, to give you a future and a hope.",
     reference: "Jeremiah 29:11",
-    meaning: "God has a purpose for your life. Even when studying feels overwhelming, trust that every effort you put in is building towards something greater."
+    meaning: "God has a purpose for your life. Even when studying feels overwhelming, trust that every effort you put in is building towards something greater. Your hard work matters."
   },
   {
     id: "2",
     text: "Commit your work to the LORD, and your plans will be established.",
     reference: "Proverbs 16:3",
-    meaning: "When you dedicate your studies to a higher purpose, you'll find more clarity and direction."
+    meaning: "When you dedicate your studies to a higher purpose, you'll find more clarity and direction. Start each study session with intention and watch your understanding grow."
   },
   {
     id: "3",
     text: "Whatever you do, work heartily, as for the Lord and not for men.",
     reference: "Colossians 3:23",
-    meaning: "Excellence in studying isn't about impressing others. Give your best effort for growth."
+    meaning: "Excellence in studying isn't about impressing others—it's about developing yourself fully. Give your best effort, not for grades alone, but for growth."
   },
   {
     id: "4",
     text: "The heart of the discerning acquires knowledge, for the ears of the wise seek it out.",
     reference: "Proverbs 18:15",
-    meaning: "Being a good student means actively seeking understanding. Ask questions, stay curious."
+    meaning: "Being a good student means actively seeking understanding, not just passively receiving information. Ask questions, stay curious, and wisdom will follow."
   },
   {
     id: "5",
     text: "I can do all things through him who strengthens me.",
     reference: "Philippians 4:13",
-    meaning: "You have the inner strength to overcome any challenge. Believe in your ability to learn."
+    meaning: "That difficult subject? That challenging exam? You have the inner strength to overcome it. Believe in your ability to learn and grow through every challenge."
   },
   {
     id: "6",
     text: "Trust in the LORD with all your heart, and do not lean on your own understanding.",
     reference: "Proverbs 3:5",
-    meaning: "Sometimes concepts don't make sense immediately. Keep studying, stay patient."
+    meaning: "Sometimes concepts don't make sense immediately—that's okay. Keep studying, stay patient, and understanding will come. Trust the learning process."
   },
   {
     id: "7",
     text: "Be strong and courageous. Do not be afraid; do not be discouraged.",
     reference: "Joshua 1:9",
-    meaning: "Approach difficult material with courage and persistence."
+    meaning: "Academic challenges can feel intimidating, but don't let fear hold you back. Approach difficult material with courage and persistence."
   }
 ];
 
+// Changelog entries
 const CHANGELOG = [
-  { date: "Dec 2024", text: "Per-collection progress tracking" },
-  { date: "Dec 2024", text: "20-question worksheet batches" },
-  { date: "Dec 2024", text: "Improved quiz explanations" },
-  { date: "Nov 2024", text: "Enhanced Anki export" },
+  { date: "Dec 2024", text: "Per-collection progress tracking on dashboard" },
+  { date: "Dec 2024", text: "Added 20-question worksheet batches with topic targeting" },
+  { date: "Dec 2024", text: "Improved quiz explanations with memory hooks" },
+  { date: "Dec 2024", text: "Added 'I don't know' button for honest learning" },
+  { date: "Nov 2024", text: "Enhanced flashcard export to Anki format" },
 ];
-
-// DEV_MODE: Set to true to bypass auth for testing
-const DEV_MODE = true;
 
 interface Collection {
   id: string;
@@ -96,7 +95,7 @@ interface CollectionProgress {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(!DEV_MODE);
+  const [loading, setLoading] = useState(true);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [progress, setProgress] = useState<CollectionProgress>({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
@@ -104,11 +103,6 @@ const Dashboard = () => {
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
 
   useEffect(() => {
-    if (DEV_MODE) {
-      setLoading(false);
-      return;
-    }
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         navigate("/");
@@ -131,10 +125,13 @@ const Dashboard = () => {
   }, [navigate]);
 
   useEffect(() => {
+    // Load liked quotes from localStorage
     const stored = localStorage.getItem("likedQuotes");
     if (stored) {
       setLikedQuotes(JSON.parse(stored));
     }
+
+    // Pick quote of the day based on date
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
     const quoteIndex = dayOfYear % BIBLE_QUOTES.length;
     setTodayQuote(BIBLE_QUOTES[quoteIndex]);
@@ -150,6 +147,7 @@ const Dashboard = () => {
 
       if (collectionsData && collectionsData.length > 0) {
         setCollections(collectionsData);
+        // Auto-select the first collection
         const lastUsed = localStorage.getItem("lastCollectionId");
         const toSelect = lastUsed && collectionsData.some(c => c.id === lastUsed) 
           ? lastUsed 
@@ -173,6 +171,7 @@ const Dashboard = () => {
         .limit(20);
 
       if (sessions && sessions.length > 0) {
+        // Calculate quiz progress from recent quiz sessions
         const quizSessions = sessions.filter(s => s.mode === "quiz");
         let quizAvg = 0;
         if (quizSessions.length > 0) {
@@ -190,18 +189,22 @@ const Dashboard = () => {
           quizAvg = scores.reduce((a, b) => a + b, 0) / scores.length;
         }
 
+        // Count worksheet sessions
         const worksheetCount = sessions.filter(s => s.mode === "worksheet").length;
         const worksheetProgress = Math.min(worksheetCount * 20, 100);
 
+        // Flashcard progress
         const flashcardSessions = sessions.filter(s => s.mode === "flashcards");
         const flashcardProgress = flashcardSessions.length > 0 ? Math.min(flashcardSessions.length * 20, 100) : 0;
 
+        // Overall progress
         const counts = [quizAvg > 0 ? 1 : 0, worksheetProgress > 0 ? 1 : 0, flashcardProgress > 0 ? 1 : 0];
         const total = counts.reduce((a, b) => a + b, 0);
         const overall = total > 0 
           ? Math.round((quizAvg + worksheetProgress + flashcardProgress) / (total * 100) * 100)
           : 0;
 
+        // Last studied
         const lastSession = sessions[0];
         const lastStudied = lastSession?.updated_at 
           ? new Date(lastSession.updated_at).toLocaleDateString() + " at " + 
@@ -226,7 +229,7 @@ const Dashboard = () => {
   const handleCollectionChange = (collectionId: string) => {
     setSelectedCollectionId(collectionId);
     localStorage.setItem("lastCollectionId", collectionId);
-    if (session?.user?.id) {
+    if (session) {
       loadCollectionProgress(session.user.id, collectionId);
     }
   };
@@ -240,9 +243,10 @@ const Dashboard = () => {
     localStorage.setItem("likedQuotes", JSON.stringify(newLiked));
 
     if (!likedQuotes.includes(todayQuote.id)) {
+      // Show toast occasionally (1 in 3 chance)
       const lastToast = localStorage.getItem("lastQuoteToast");
       const now = Date.now();
-      if (!lastToast || now - parseInt(lastToast) > 86400000) {
+      if (!lastToast || now - parseInt(lastToast) > 86400000) { // Once per day max
         if (Math.random() < 0.33) {
           toast.info("These quotes come from the Bible. Consider reading the full chapter for deeper meaning.", {
             duration: 5000
@@ -265,7 +269,6 @@ const Dashboard = () => {
   };
 
   const selectedCollection = collections.find(c => c.id === selectedCollectionId);
-  const isQuoteLiked = likedQuotes.includes(todayQuote.id);
 
   if (loading) {
     return (
@@ -275,86 +278,60 @@ const Dashboard = () => {
     );
   }
 
-  if (!session && !DEV_MODE) {
+  if (!session) {
     return null;
   }
 
-  return (
-    <AppShell 
-      onSignOut={handleSignOut} 
-      userEmail={session?.user?.email}
-      rightHeaderContent={session?.user?.id ? <FeedbackDialog userId={session.user.id} /> : undefined}
-    >
-      <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4" data-testid="card-stat-collections">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <FolderOpen className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{collections.length}</p>
-                <p className="text-xs text-muted-foreground">Collections</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-4" data-testid="card-stat-progress">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{progress.overall}%</p>
-                <p className="text-xs text-muted-foreground">Overall Progress</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-4" data-testid="card-stat-quiz">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <GraduationCap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{progress.quiz}%</p>
-                <p className="text-xs text-muted-foreground">Quiz Average</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-4" data-testid="card-stat-flashcards">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{progress.flashcards}%</p>
-                <p className="text-xs text-muted-foreground">Flashcard Progress</p>
-              </div>
-            </div>
-          </Card>
-        </div>
+  const isQuoteLiked = likedQuotes.includes(todayQuote.id);
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Card data-testid="card-collection-progress">
-              <CardHeader className="pb-3">
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="h-14 border-b bg-card flex items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          <img src={lightpathLogo} alt="Lightpath Study" className="w-8 h-8 rounded" />
+          <h1 className="text-lg font-semibold">Lightpath Study</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <FeedbackDialog userId={session.user.id} />
+          <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
+            <Settings className="h-4 w-4" />
+          </Button>
+          {session?.user?.email && (
+            <span className="text-sm text-muted-foreground hidden sm:block">
+              {session.user.email}
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6 max-w-6xl">
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Left Column - Progress & Quick Actions */}
+          <div className="md:col-span-2 space-y-6">
+            {/* Collection Selector + Progress */}
+            <Card>
+              <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="h-4 w-4 text-primary" />
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <TrendingUp className="h-5 w-5 text-primary" />
                     Collection Progress
                   </CardTitle>
                   {collections.length > 0 && (
                     <Select value={selectedCollectionId || ""} onValueChange={handleCollectionChange}>
-                      <SelectTrigger className="w-[180px]" data-testid="select-collection">
+                      <SelectTrigger className="w-[200px]">
                         <SelectValue placeholder="Select collection" />
                       </SelectTrigger>
                       <SelectContent>
                         {collections.map(c => (
                           <SelectItem key={c.id} value={c.id}>
                             <div className="flex items-center gap-2">
-                              <FolderOpen className="h-3 w-3" />
+                              <FolderOpen className="h-4 w-4" />
                               {c.name}
                             </div>
                           </SelectItem>
@@ -366,79 +343,72 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {collections.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No collections yet. Create one to start!</p>
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No collections yet. Create one to start tracking progress!</p>
                   </div>
                 ) : (
                   <>
                     <div className="flex items-center justify-between">
-                      <span className="text-2xl font-bold text-primary">{progress.overall}%</span>
+                      <span className="text-3xl font-bold text-primary">{progress.overall}%</span>
                       <span className="text-sm text-muted-foreground">
-                        {selectedCollection?.name}
+                        {selectedCollection?.name || "Select a collection"}
                       </span>
                     </div>
-                    <Progress value={progress.overall} className="h-2" />
+                    <Progress value={progress.overall} className="h-3" />
                     
-                    <div className="grid grid-cols-3 gap-3 pt-2">
+                    <div className="grid grid-cols-3 gap-4 pt-2">
                       <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Brain className="h-4 w-4 mx-auto mb-1 text-primary" />
-                        <div className="text-base font-semibold">{progress.quiz}%</div>
-                        <div className="text-xs text-muted-foreground">Quiz</div>
+                        <Brain className="h-5 w-5 mx-auto mb-1 text-primary" />
+                        <div className="text-lg font-semibold">{progress.quiz}%</div>
+                        <div className="text-xs text-muted-foreground">Quiz Avg</div>
                       </div>
                       <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Sparkles className="h-4 w-4 mx-auto mb-1 text-accent" />
-                        <div className="text-base font-semibold">{progress.flashcards}%</div>
+                        <Sparkles className="h-5 w-5 mx-auto mb-1 text-accent" />
+                        <div className="text-lg font-semibold">{progress.flashcards}%</div>
                         <div className="text-xs text-muted-foreground">Flashcards</div>
                       </div>
                       <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <FileText className="h-4 w-4 mx-auto mb-1 text-green-600 dark:text-green-400" />
-                        <div className="text-base font-semibold">{progress.worksheet}%</div>
+                        <FileText className="h-5 w-5 mx-auto mb-1 text-success" />
+                        <div className="text-lg font-semibold">{progress.worksheet}%</div>
                         <div className="text-xs text-muted-foreground">Worksheet</div>
                       </div>
                     </div>
 
-                    {progress.lastStudied && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
-                        <Clock className="h-3 w-3" />
-                        <span>Last studied: {progress.lastStudied}</span>
+                    <div className="flex items-center justify-between text-sm pt-2 border-t">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Clock className="h-4 w-4" />
+                        <span>Last studied: {progress.lastStudied || "Not started"}</span>
                       </div>
-                    )}
+                    </div>
                   </>
                 )}
               </CardContent>
             </Card>
 
-            <Card data-testid="card-quick-actions">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Quick Actions</CardTitle>
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Continue Learning</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent>
                 <Button 
-                  className="w-full justify-start" 
+                  className="w-full" 
+                  size="lg"
                   onClick={() => navigate("/study")}
-                  data-testid="button-go-to-study"
                 >
-                  <BookOpen className="h-4 w-4 mr-2" />
+                  <BookOpen className="h-5 w-5 mr-2" />
                   Go to Study Workspace
-                  <ArrowRight className="h-4 w-4 ml-auto" />
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="w-full justify-start" 
-                  onClick={() => navigate("/study")}
-                  data-testid="button-upload-files"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload New Files
+                  <ArrowRight className="h-5 w-5 ml-auto" />
                 </Button>
               </CardContent>
             </Card>
 
-            <Card data-testid="card-whats-new">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
+            {/* What's New */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Sparkles className="h-5 w-5 text-warning" />
                   What's New
                 </CardTitle>
               </CardHeader>
@@ -446,7 +416,7 @@ const Dashboard = () => {
                 <ul className="space-y-2">
                   {CHANGELOG.map((item, i) => (
                     <li key={i} className="flex items-start gap-3 text-sm">
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">{item.date}</span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap mt-0.5">{item.date}</span>
                       <span className="text-foreground">{item.text}</span>
                     </li>
                   ))}
@@ -455,20 +425,21 @@ const Dashboard = () => {
             </Card>
           </div>
 
+          {/* Right Column - Quote + Saved */}
           <div className="space-y-6">
-            <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20" data-testid="card-quote">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <BookOpen className="h-4 w-4 text-primary" />
+            <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <BookOpen className="h-5 w-5 text-primary" />
                   Quote of the Day
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <blockquote className="text-sm text-foreground italic border-l-2 border-primary pl-3">
+              <CardContent className="space-y-4">
+                <blockquote className="text-foreground italic border-l-2 border-primary pl-4">
                   "{todayQuote.text}"
                 </blockquote>
-                <p className="text-xs font-medium text-primary">- {todayQuote.reference}</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <p className="text-sm font-medium text-primary">— {todayQuote.reference}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   {todayQuote.meaning}
                 </p>
                 <Button 
@@ -476,25 +447,23 @@ const Dashboard = () => {
                   size="sm" 
                   onClick={handleLikeQuote}
                   className="w-full"
-                  data-testid="button-like-quote"
                 >
-                  <Heart className={`h-3 w-3 mr-2 ${isQuoteLiked ? "fill-current" : ""}`} />
+                  <Heart className={`h-4 w-4 mr-2 ${isQuoteLiked ? "fill-current" : ""}`} />
                   {isQuoteLiked ? "Saved" : "Save Quote"}
                 </Button>
               </CardContent>
             </Card>
 
+            {/* Saved Quotes Access */}
             {likedQuotes.length > 0 && (
-              <Card data-testid="card-saved-quotes">
+              <Card>
                 <CardContent className="pt-4">
                   <Button 
                     variant="outline" 
-                    size="sm"
                     className="w-full"
                     onClick={() => navigate("/settings?tab=saved")}
-                    data-testid="button-view-saved"
                   >
-                    <BookMarked className="h-3 w-3 mr-2" />
+                    <BookMarked className="h-4 w-4 mr-2" />
                     View {likedQuotes.length} Saved Quote{likedQuotes.length > 1 ? 's' : ''}
                   </Button>
                 </CardContent>
@@ -502,8 +471,8 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-      </div>
-    </AppShell>
+      </main>
+    </div>
   );
 };
 

@@ -2,38 +2,16 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { LogOut, Menu, Sparkles } from "lucide-react";
+import { LogOut, Menu, Home } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
-import { Breadcrumbs, BreadcrumbItem } from "@/components/navigation/Breadcrumbs";
-import { BackButton } from "@/components/navigation/BackButton";
-import { StudyMode } from "@/pages/Study";
 
 interface TopBarProps {
   session: Session | null;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  collectionName?: string | null;
-  mode?: StudyMode;
-  onClearCollection?: () => void;
 }
 
-const modeLabels: Record<StudyMode, string> = {
-  explain: "Tutor",
-  quiz: "Quiz",
-  flashcards: "Flashcards",
-  worksheet: "Worksheet",
-  memory: "Memory Tricks",
-  notes: "Notes",
-};
-
-export const TopBar = ({ 
-  session, 
-  sidebarOpen, 
-  setSidebarOpen,
-  collectionName,
-  mode,
-  onClearCollection
-}: TopBarProps) => {
+export const TopBar = ({ session, sidebarOpen, setSidebarOpen }: TopBarProps) => {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -46,80 +24,38 @@ export const TopBar = ({
     }
   };
 
-  const buildBreadcrumbs = (): BreadcrumbItem[] => {
-    const items: BreadcrumbItem[] = [
-      { label: "Dashboard", path: "/dashboard" },
-    ];
-
-    if (collectionName) {
-      items.push({
-        label: collectionName,
-        onClick: onClearCollection,
-      });
-    }
-
-    if (mode && collectionName) {
-      items.push({
-        label: modeLabels[mode],
-      });
-    }
-
-    return items;
-  };
-
-  const getBackConfig = () => {
-    if (collectionName && mode) {
-      return {
-        label: "Back to Collection",
-        onClick: onClearCollection,
-      };
-    }
-    return {
-      label: "Back to Dashboard",
-      fallbackPath: "/dashboard",
-    };
-  };
-
-  const backConfig = getBackConfig();
-
   return (
-    <header className="h-12 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-3 sticky top-0 z-50" data-testid="header-topbar">
+    <header className="h-14 border-b bg-card flex items-center justify-between px-4">
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon"
           className="lg:hidden"
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          data-testid="button-toggle-sidebar"
         >
-          <Menu className="h-4 w-4" />
+          <Menu className="h-5 w-5" />
         </Button>
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center">
-            <Sparkles className="h-4 w-4 text-primary" />
-          </div>
-          <span className="font-semibold text-sm hidden sm:inline">Lightpath Study</span>
-        </div>
-        <div className="hidden md:block border-l pl-3 ml-1">
-          <Breadcrumbs items={buildBreadcrumbs()} />
-        </div>
+        <h1 className="text-lg font-semibold">Lightpath Study</h1>
       </div>
 
       <div className="flex items-center gap-2">
-        <BackButton
-          label={backConfig.label}
-          fallbackPath={backConfig.fallbackPath}
-          onClick={backConfig.onClick}
-        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate(session ? "/dashboard" : "/")}
+        >
+          <Home className="h-4 w-4 mr-2" />
+          Home
+        </Button>
         {session?.user?.email && (
-          <span className="text-xs text-muted-foreground hidden lg:block max-w-[150px] truncate" data-testid="text-user-email">
+          <div className="text-sm text-muted-foreground hidden sm:block">
             {session.user.email}
-          </span>
+          </div>
         )}
         {session && (
-          <Button variant="outline" size="sm" onClick={handleSignOut} data-testid="button-signout">
-            <LogOut className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Sign Out</span>
+          <Button variant="outline" size="sm" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
           </Button>
         )}
       </div>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles, Flag, GraduationCap } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles, Flag } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
@@ -174,17 +174,11 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
     const skills = Object.values(masteryBySkill);
     if (skills.length === 0) return 0;
     const avg = skills.reduce((sum, s) => sum + (s.correct / Math.max(s.total, 1)), 0) / skills.length;
-    return Math.min(100, Math.max(0, Math.round(avg * 100)));
-  };
-
-  const clampPercent = (value: number): number => Math.min(100, Math.max(0, value));
-
-  const getSkillPercent = (skill: SkillMastery): number => {
-    return clampPercent(Math.round((skill.correct / Math.max(skill.total, 1)) * 100));
+    return Math.round(avg * 100);
   };
 
   const getSkillIcon = (skill: SkillMastery) => {
-    const pct = getSkillPercent(skill);
+    const pct = (skill.correct / Math.max(skill.total, 1)) * 100;
     if (pct >= 80) return <CheckCircle2 className="h-4 w-4 text-green-500" />;
     if (pct >= 50) return <HelpCircle className="h-4 w-4 text-yellow-500" />;
     return <XCircle className="h-4 w-4 text-red-500" />;
@@ -509,24 +503,24 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
   }
 
   if (quizComplete) {
-    const percentage = clampPercent(Math.round((score / questions.length) * 100));
+    const percentage = Math.round((score / questions.length) * 100);
     const overallMastery = getOverallMastery();
     
     return (
-      <div className="flex items-center justify-center h-full p-4" data-testid="panel-quiz-complete">
-        <Card className="w-full max-w-xl">
-          <CardHeader className="text-center pb-2">
-            <CardTitle className="text-xl">Quiz Complete</CardTitle>
+      <div className="flex items-center justify-center h-full p-4">
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <CardTitle>Quiz Complete!</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid grid-cols-2 gap-3 text-center">
-              <div className="p-4 rounded-lg bg-primary/10">
-                <p className="text-3xl font-bold text-primary">{percentage}%</p>
-                <p className="text-xs text-muted-foreground mt-1">Score</p>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-3xl font-bold">{percentage}%</p>
+                <p className="text-sm text-muted-foreground">Score</p>
               </div>
               <div className="p-4 rounded-lg bg-muted">
                 <p className="text-3xl font-bold">{overallMastery}%</p>
-                <p className="text-xs text-muted-foreground mt-1">Understanding</p>
+                <p className="text-sm text-muted-foreground">Understanding</p>
               </div>
             </div>
 
@@ -556,22 +550,18 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
   const currentQuestion = questions[currentIndex];
   const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
   const overallMastery = getOverallMastery();
-  const displayMastery = clampPercent(overallMastery);
 
   return (
-    <div className="flex items-center justify-center h-full p-4" data-testid="panel-quiz">
-      <Card className="w-full max-w-xl">
-        <CardHeader className="pb-2">
+    <div className="flex items-center justify-center h-full p-4">
+      <Card className="w-full max-w-2xl">
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <GraduationCap className="h-4 w-4 text-primary" />
-              <CardTitle className="text-sm font-medium">
-                Question {currentIndex + 1} of {questions.length}
-              </CardTitle>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">{score}/{currentIndex} correct</span>
-              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">{displayMastery}%</span>
+            <CardTitle className="text-base">
+              Q{currentIndex + 1}/{questions.length}
+            </CardTitle>
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Score: {score}/{currentIndex}</span>
+              <span className="text-muted-foreground">Understanding: {overallMastery}%</span>
               <Dialog open={showProgress} onOpenChange={setShowProgress}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-7 px-2">
@@ -595,7 +585,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                         <p className="text-sm text-muted-foreground">Answer questions to see skill breakdown.</p>
                       ) : (
                         Object.entries(masteryBySkill).map(([tag, skill]) => {
-                          const pct = getSkillPercent(skill);
+                          const pct = Math.round((skill.correct / Math.max(skill.total, 1)) * 100);
                           return (
                             <div key={tag} className="space-y-1">
                               <div className="flex items-center gap-2 text-sm">
