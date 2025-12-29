@@ -96,7 +96,7 @@ interface CollectionProgress {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!DEV_MODE);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [progress, setProgress] = useState<CollectionProgress>({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
@@ -104,20 +104,23 @@ const Dashboard = () => {
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
 
   useEffect(() => {
+    if (DEV_MODE) {
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session && !DEV_MODE) {
+      if (!session) {
         navigate("/");
       } else {
         setSession(session);
-        if (session) {
-          loadCollections(session.user.id);
-        }
+        loadCollections(session.user.id);
       }
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session && !DEV_MODE) {
+      if (!session) {
         navigate("/");
       } else {
         setSession(session);
