@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
+import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { FooterNav } from "@/components/ui/footer-nav";
 import lightpathLogo from "@/assets/lightpath-logo.png";
 
 // Bible quotes with meanings
@@ -285,26 +287,29 @@ const Dashboard = () => {
   const isQuoteLiked = likedQuotes.includes(todayQuote.id);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-14 md:pb-0">
       {/* Header */}
-      <header className="h-14 border-b bg-card flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <img src={lightpathLogo} alt="Lightpath Study" className="w-8 h-8 rounded" />
-          <h1 className="text-lg font-semibold">Lightpath Study</h1>
+      <header className="h-12 border-b bg-card flex items-center justify-between px-3 sticky top-0 z-30">
+        <div className="flex items-center gap-2 min-w-0">
+          <img src={lightpathLogo} alt="Lightpath Study" className="w-6 h-6 rounded shrink-0" />
+          <span className="font-semibold text-sm hidden sm:block">LightPath</span>
+          <div className="hidden md:block border-l pl-3 ml-2">
+            <Breadcrumbs items={[{ label: "Dashboard" }]} />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <FeedbackDialog userId={session.user.id} />
-          <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/settings")} className="h-8" data-testid="button-settings">
             <Settings className="h-4 w-4" />
           </Button>
           {session?.user?.email && (
-            <span className="text-sm text-muted-foreground hidden sm:block">
+            <span className="text-xs text-muted-foreground hidden lg:block max-w-[120px] truncate">
               {session.user.email}
             </span>
           )}
-          <Button variant="outline" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
+          <Button variant="outline" size="sm" onClick={handleSignOut} className="h-8 gap-1.5" data-testid="button-signout">
+            <LogOut className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline text-xs">Sign Out</span>
           </Button>
         </div>
       </header>
@@ -462,6 +467,7 @@ const Dashboard = () => {
                     variant="outline" 
                     className="w-full"
                     onClick={() => navigate("/settings?tab=saved")}
+                    data-testid="button-saved-quotes"
                   >
                     <BookMarked className="h-4 w-4 mr-2" />
                     View {likedQuotes.length} Saved Quote{likedQuotes.length > 1 ? 's' : ''}
@@ -472,6 +478,8 @@ const Dashboard = () => {
           </div>
         </div>
       </main>
+      
+      <FooterNav />
     </div>
   );
 };

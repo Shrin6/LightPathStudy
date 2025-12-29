@@ -8,12 +8,21 @@ import { QuizPanel } from "@/components/study/QuizPanel";
 import { WorksheetPanel } from "@/components/study/WorksheetPanel";
 import { NotesViewer } from "@/components/study/NotesViewer";
 import { TopBar } from "@/components/study/TopBar";
+import { FooterNav } from "@/components/ui/footer-nav";
 import { Session } from "@supabase/supabase-js";
 
 export type StudyMode = "explain" | "quiz" | "flashcards" | "worksheet" | "memory" | "notes";
 export type DocumentTypeHint = "NOTES_OR_STUDY_GUIDE" | "QUIZ_OR_TEST" | "WORKSHEET_OR_PROBLEM_SET" | "SLIDES_OR_IMAGES" | "MIXED_OR_UNSURE";
 
-// DEV_MODE: Set to true to bypass auth for testing
+const MODE_LABELS: Record<StudyMode, string> = {
+  explain: "Tutor",
+  quiz: "Quiz",
+  flashcards: "Flashcards",
+  worksheet: "Worksheet",
+  memory: "Memory Tricks",
+  notes: "Notes"
+};
+
 const DEV_MODE = true;
 
 const Study = () => {
@@ -22,12 +31,12 @@ const Study = () => {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<StudyMode>("explain");
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [collectionName, setCollectionName] = useState<string | null>(null);
   const [collectionContent, setCollectionContent] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [documentTypeHint, setDocumentTypeHint] = useState<DocumentTypeHint>("MIXED_OR_UNSURE");
 
   useEffect(() => {
-    // Check authentication
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session && !DEV_MODE) {
         navigate("/auth");
@@ -49,11 +58,21 @@ const Study = () => {
   }, [navigate]);
 
   useEffect(() => {
-    // Load collection content when collection changes
-    const loadCollectionContent = async () => {
+    const loadCollectionData = async () => {
       if (!selectedCollection) {
         setCollectionContent("");
+        setCollectionName(null);
         return;
+      }
+
+      const { data: collectionData } = await supabase
+        .from("collections")
+        .select("name")
+        .eq("id", selectedCollection)
+        .single();
+
+      if (collectionData) {
+        setCollectionName(collectionData.name);
       }
 
       const { data, error } = await supabase
@@ -71,13 +90,13 @@ const Study = () => {
       setCollectionContent(allContent);
     };
 
-    loadCollectionContent();
+    loadCollectionData();
   }, [selectedCollection]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg text-muted-foreground">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-sm text-muted-foreground">Loading...</div>
       </div>
     );
   }
@@ -102,11 +121,13 @@ const Study = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col w-full">
+    <div className="min-h-screen flex flex-col w-full bg-background">
       <TopBar 
         session={session} 
         sidebarOpen={sidebarOpen} 
-        setSidebarOpen={setSidebarOpen} 
+        setSidebarOpen={setSidebarOpen}
+        collectionName={collectionName}
+        modeName={MODE_LABELS[mode]}
       />
       
       <div className="flex flex-1 overflow-hidden">
@@ -121,10 +142,12 @@ const Study = () => {
           setDocumentTypeHint={setDocumentTypeHint}
         />
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto pb-14 md:pb-0">
           {renderMainContent()}
         </main>
       </div>
+      
+      <FooterNav />
     </div>
   );
 };
