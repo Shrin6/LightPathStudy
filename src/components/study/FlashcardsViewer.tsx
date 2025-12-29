@@ -302,16 +302,16 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
 
   if (!collectionId) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Select a collection to view flashcards</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <p className="text-sm text-muted-foreground">Select a collection to view flashcards</p>
       </div>
     );
   }
 
   if (!collectionContent || collectionContent.length < 300) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Not enough content to generate flashcards. Upload more detailed files.</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <p className="text-sm text-muted-foreground text-center">Not enough content to generate flashcards.<br/>Upload more detailed files.</p>
       </div>
     );
   }
@@ -319,17 +319,17 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (flashcards.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-4">
-          <p className="text-muted-foreground">No flashcards yet</p>
-          <Button onClick={generateFlashcards} disabled={isGenerating}>
+      <div className="flex items-center justify-center h-full p-6">
+        <div className="text-center space-y-3">
+          <p className="text-sm text-muted-foreground">No flashcards yet</p>
+          <Button onClick={generateFlashcards} disabled={isGenerating} size="sm">
             {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isGenerating ? 'Generating...' : 'Generate Flashcards'}
           </Button>
@@ -342,17 +342,17 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   const progress = ((knownCards.size + unknownCards.size) / flashcards.length) * 100;
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-4 md:p-8 space-y-6">
+    <div className="flex flex-col items-center justify-center h-full p-4 space-y-4">
       {/* Progress indicator */}
-      <div className="w-full max-w-2xl space-y-2">
-        <div className="flex justify-between text-sm text-muted-foreground">
+      <div className="w-full max-w-lg space-y-1.5">
+        <div className="flex justify-between text-xs text-muted-foreground">
           <span>Card {currentIndex + 1} of {flashcards.length}</span>
-          <span className="flex gap-4">
-            <span className="text-green-500">✓ {knownCards.size}</span>
-            <span className="text-red-500">✗ {unknownCards.size}</span>
+          <span className="flex gap-3">
+            <span className="text-success">✓ {knownCards.size}</span>
+            <span className="text-destructive">✗ {unknownCards.size}</span>
           </span>
         </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div 
             className="h-full bg-primary transition-all duration-300" 
             style={{ width: `${progress}%` }} 
@@ -362,7 +362,7 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
 
       {/* Flashcard with flip animation */}
       <div 
-        className="w-full max-w-2xl h-64 md:h-80 perspective-1000 cursor-pointer"
+        className="w-full max-w-lg h-56 md:h-64 perspective-1000 cursor-pointer"
         onClick={() => setFlipped(!flipped)}
       >
         <div 
@@ -376,10 +376,10 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
         >
           {/* Front face */}
           <Card 
-            className="absolute inset-0 backface-hidden shadow-lg border-2"
+            className="absolute inset-0 backface-hidden border"
             style={{ backfaceVisibility: 'hidden' }}
           >
-            <CardContent className="flex flex-col items-center justify-center h-full p-6 md:p-8">
+            <CardContent className="flex flex-col items-center justify-center h-full p-5">
               <div className="absolute top-2 right-2">
                 <ReportDialog
                   feature="flashcards"
@@ -391,13 +391,13 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
                   }}
                 />
               </div>
-              <div className="text-xs font-semibold text-primary mb-4 uppercase tracking-wide">
+              <div className="text-[10px] font-semibold text-primary mb-3 uppercase tracking-wider">
                 Question
               </div>
-              <p className="text-lg md:text-xl text-center font-medium">
+              <p className="text-base md:text-lg text-center font-medium">
                 {currentCard.front}
               </p>
-              <p className="text-xs text-muted-foreground mt-6">
+              <p className="text-[10px] text-muted-foreground mt-4">
                 Tap to reveal answer
               </p>
             </CardContent>
@@ -405,17 +405,17 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
           
           {/* Back face */}
           <Card 
-            className="absolute inset-0 backface-hidden shadow-lg border-2 border-primary/30 bg-primary/5"
+            className="absolute inset-0 backface-hidden border-primary/30 bg-primary/5"
             style={{ 
               backfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)'
             }}
           >
-            <CardContent className="flex flex-col items-center justify-center h-full p-6 md:p-8">
-              <div className="text-xs font-semibold text-primary mb-4 uppercase tracking-wide">
+            <CardContent className="flex flex-col items-center justify-center h-full p-5">
+              <div className="text-[10px] font-semibold text-primary mb-3 uppercase tracking-wider">
                 Answer
               </div>
-              <p className="text-lg md:text-xl text-center">
+              <p className="text-base md:text-lg text-center">
                 {currentCard.back}
               </p>
             </CardContent>
@@ -424,36 +424,37 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
       </div>
 
       {/* Know it / Don't know it buttons */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Button
           variant="outline"
           onClick={handleDontKnowIt}
-          className="border-red-500/50 text-red-500 hover:bg-red-500/10"
-          size="lg"
+          className="border-destructive/50 text-destructive hover:bg-destructive/10"
+          size="sm"
         >
-          <X className="h-5 w-5 mr-2" />
+          <X className="h-4 w-4 mr-1.5" />
           Don't Know
         </Button>
         <Button
           variant="outline"
           onClick={handleKnowIt}
-          className="border-green-500/50 text-green-500 hover:bg-green-500/10"
-          size="lg"
+          className="border-success/50 text-success hover:bg-success/10"
+          size="sm"
         >
-          <Check className="h-5 w-5 mr-2" />
+          <Check className="h-4 w-4 mr-1.5" />
           Know It
         </Button>
       </div>
 
       {/* Navigation and actions */}
-      <div className="flex items-center gap-3 flex-wrap justify-center">
+      <div className="flex items-center gap-2 flex-wrap justify-center">
         <Button
           variant="ghost"
           onClick={handlePrevious}
           disabled={currentIndex === 0}
           size="sm"
+          className="h-8"
         >
-          <ChevronLeft className="h-4 w-4 mr-1" />
+          <ChevronLeft className="h-4 w-4 mr-0.5" />
           Prev
         </Button>
         <Button
@@ -461,20 +462,21 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
           onClick={handleNext}
           disabled={currentIndex === flashcards.length - 1}
           size="sm"
+          className="h-8"
         >
           Next
-          <ChevronRight className="h-4 w-4 ml-1" />
+          <ChevronRight className="h-4 w-4 ml-0.5" />
         </Button>
-        <Button variant="ghost" onClick={shuffleCards} size="sm">
+        <Button variant="ghost" onClick={shuffleCards} size="sm" className="h-8">
           <Shuffle className="h-4 w-4 mr-1" />
           Shuffle
         </Button>
-        <Button variant="ghost" onClick={exportToAnki} size="sm">
+        <Button variant="ghost" onClick={exportToAnki} size="sm" className="h-8">
           <Download className="h-4 w-4 mr-1" />
           Export
         </Button>
-        <Button onClick={generateFlashcards} disabled={isGenerating} variant="outline" size="sm">
-          {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button onClick={generateFlashcards} disabled={isGenerating} variant="outline" size="sm" className="h-8">
+          {isGenerating && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
           Regenerate
         </Button>
       </div>

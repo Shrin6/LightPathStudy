@@ -159,15 +159,14 @@ export const CollectionsList = ({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-1">
-        <h3 className="font-medium text-xs">Collections</h3>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button 
               size="sm" 
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-sm h-6 text-xs px-2"
+              className="w-full h-7 text-xs gap-1"
             >
-              <Plus className="h-3 w-3 mr-1" />
-              New
+              <Plus className="h-3 w-3" />
+              New Collection
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -190,67 +189,67 @@ export const CollectionsList = ({
       </div>
 
       {collections.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No collections yet. Create one to get started!</p>
+        <p className="text-xs text-muted-foreground text-center py-2">No collections yet</p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {collections.map((collection) => (
             <div
               key={collection.id}
               className={cn(
-                "p-1.5 rounded-md border cursor-pointer hover:bg-accent/50 transition-colors",
-                selectedCollection === collection.id && "bg-accent border-primary"
+                "p-2 rounded-md border cursor-pointer hover:bg-accent/50 transition-colors",
+                selectedCollection === collection.id && "bg-accent border-primary/50"
               )}
               onClick={() => setSelectedCollection(collection.id)}
             >
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-1 min-w-0">
-                  <Folder className="h-3 w-3 text-primary flex-shrink-0" />
-                  <span className="font-medium text-xs truncate flex-1">{collection.name}</span>
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <Folder className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="font-medium text-xs truncate">{collection.name}</span>
                 </div>
-                <div className="flex items-center gap-0.5 pl-4">
+                <div className="flex items-center gap-0.5 shrink-0">
                   <Button
                     size="icon"
-                    variant="outline"
-                    className="h-4 w-4 border-border hover:bg-primary hover:text-primary-foreground transition-colors"
+                    variant="ghost"
+                    className="h-5 w-5"
                     onClick={(e) => {
                       e.stopPropagation();
                       openUploadDialog(collection.id);
                     }}
                     title="Upload files"
                   >
-                    <Upload className="h-2.5 w-2.5" />
+                    <Upload className="h-3 w-3" />
                   </Button>
                   <Button
                     size="icon"
-                    variant="outline"
-                    className="h-4 w-4 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                    variant="ghost"
+                    className="h-5 w-5 text-destructive hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteCollection(collection.id);
                     }}
                     title="Delete collection"
                   >
-                    <Trash2 className="h-2.5 w-2.5" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
 
               {collection.uploaded_files && collection.uploaded_files.length > 0 && (
-                <div className="mt-1.5 space-y-0.5">
+                <div className="mt-1.5 space-y-0.5 pl-5">
                   {collection.uploaded_files.map((file: any) => (
-                    <div key={file.id} className="flex items-center justify-between gap-1 text-[10px] text-muted-foreground pl-5 pr-1 group">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <FileText className="h-2.5 w-2.5 flex-shrink-0" />
+                    <div key={file.id} className="flex items-center justify-between gap-1 text-[10px] text-muted-foreground group">
+                      <div className="flex items-center gap-1 min-w-0 flex-1">
+                        <FileText className="h-2.5 w-2.5 shrink-0" />
                         <span className="truncate">{file.file_name}</span>
                         {file.processing && (
-                          <RefreshCw className="h-2.5 w-2.5 animate-spin text-primary" />
+                          <RefreshCw className="h-2.5 w-2.5 animate-spin text-primary shrink-0" />
                         )}
                       </div>
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-3 w-3"
+                          className="h-4 w-4"
                           disabled={reparsingFileId === file.id || file.processing}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -263,7 +262,7 @@ export const CollectionsList = ({
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-3 w-3"
+                          className="h-4 w-4"
                           onClick={(e) => {
                             e.stopPropagation();
                             openMoveDialog(file.id, file.file_name, collection.id);
