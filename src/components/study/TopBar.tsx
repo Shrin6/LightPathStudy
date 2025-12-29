@@ -2,16 +2,20 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { LogOut, Menu, Home } from "lucide-react";
+import { LogOut, Menu, LayoutDashboard } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
+import { AppBreadcrumbs, BreadcrumbItem } from "@/components/ui/app-breadcrumbs";
+import lightpathLogo from "@/assets/lightpath-logo.png";
 
 interface TopBarProps {
   session: Session | null;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  collectionName?: string;
+  modeName?: string;
 }
 
-export const TopBar = ({ session, sidebarOpen, setSidebarOpen }: TopBarProps) => {
+export const TopBar = ({ session, sidebarOpen, setSidebarOpen, collectionName, modeName }: TopBarProps) => {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -24,38 +28,57 @@ export const TopBar = ({ session, sidebarOpen, setSidebarOpen }: TopBarProps) =>
     }
   };
 
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { label: "Dashboard", href: "/dashboard" },
+  ];
+  
+  if (collectionName) {
+    breadcrumbItems.push({ label: collectionName, href: undefined });
+  }
+  
+  if (modeName) {
+    breadcrumbItems.push({ label: modeName });
+  }
+
   return (
-    <header className="h-14 border-b bg-card flex items-center justify-between px-4">
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-50 h-12 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 flex items-center justify-between px-3 gap-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
+          className="lg:hidden h-8 w-8 shrink-0"
           onClick={() => setSidebarOpen(!sidebarOpen)}
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-4 w-4" />
         </Button>
-        <h1 className="text-lg font-semibold">Lightpath Study</h1>
+        
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          <img src={lightpathLogo} alt="Lightpath" className="w-6 h-6 rounded" />
+        </div>
+        
+        <AppBreadcrumbs items={breadcrumbItems} className="min-w-0" />
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={() => navigate(session ? "/dashboard" : "/")}
+          className="h-8 gap-1.5"
+          onClick={() => navigate("/dashboard")}
         >
-          <Home className="h-4 w-4 mr-2" />
-          Home
+          <LayoutDashboard className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Dashboard</span>
         </Button>
+        
         {session?.user?.email && (
-          <div className="text-sm text-muted-foreground hidden sm:block">
+          <span className="text-xs text-muted-foreground hidden md:block max-w-[120px] truncate">
             {session.user.email}
-          </div>
+          </span>
         )}
+        
         {session && (
-          <Button variant="outline" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSignOut} title="Sign Out">
+            <LogOut className="h-4 w-4" />
           </Button>
         )}
       </div>
