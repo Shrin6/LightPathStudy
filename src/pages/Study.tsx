@@ -22,6 +22,7 @@ const Study = () => {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<StudyMode>("explain");
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [collectionName, setCollectionName] = useState<string | null>(null);
   const [collectionContent, setCollectionContent] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [documentTypeHint, setDocumentTypeHint] = useState<DocumentTypeHint>("MIXED_OR_UNSURE");
@@ -49,29 +50,42 @@ const Study = () => {
   }, [navigate]);
 
   useEffect(() => {
-    // Load collection content when collection changes
-    const loadCollectionContent = async () => {
+    const loadCollectionData = async () => {
       if (!selectedCollection) {
         setCollectionContent("");
+        setCollectionName(null);
         return;
       }
 
-      const { data, error } = await supabase
-        .from("uploaded_files")
-        .select("parsed_content")
-        .eq("collection_id", selectedCollection);
+      const [filesResult, collectionResult] = await Promise.all([
+        supabase
+          .from("uploaded_files")
+          .select("parsed_content")
+          .eq("collection_id", selectedCollection),
+        supabase
+          .from("collections")
+          .select("name")
+          .eq("id", selectedCollection)
+          .single(),
+      ]);
 
-      if (error) {
-        console.error("Error loading collection content:", error);
+      if (filesResult.error) {
+        console.error("Error loading collection content:", filesResult.error);
         setCollectionContent("");
-        return;
+      } else {
+        const allContent = filesResult.data.map((file) => file.parsed_content || "").join("\n\n");
+        setCollectionContent(allContent);
       }
 
-      const allContent = data.map((file) => file.parsed_content || "").join("\n\n");
-      setCollectionContent(allContent);
+      if (collectionResult.error) {
+        console.error("Error loading collection name:", collectionResult.error);
+        setCollectionName(null);
+      } else {
+        setCollectionName(collectionResult.data?.name || null);
+      }
     };
 
-    loadCollectionContent();
+    loadCollectionData();
   }, [selectedCollection]);
 
   if (loading) {
@@ -106,7 +120,10 @@ const Study = () => {
       <TopBar 
         session={session} 
         sidebarOpen={sidebarOpen} 
-        setSidebarOpen={setSidebarOpen} 
+        setSidebarOpen={setSidebarOpen}
+        collectionName={collectionName}
+        mode={mode}
+        onClearCollection={() => setSelectedCollection(null)}
       />
       
       <div className="flex flex-1 overflow-hidden">

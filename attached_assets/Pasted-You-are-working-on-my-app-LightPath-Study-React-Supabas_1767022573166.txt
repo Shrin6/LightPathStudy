@@ -1,0 +1,63 @@
+You are working on my app “LightPath Study” (React + Supabase).  
+
+GOAL:
+Improve navigation clarity by adding “UI backlinks” (Back buttons, breadcrumbs, and footer links) across Home, Dashboard, and Study pages — WITHOUT changing any core logic, data flow, parsing, embeddings, or edge functions.
+
+ABSOLUTE RULES:
+- Do NOT modify Supabase schema, RLS, edge functions, or API calls.
+- Do NOT refactor business logic.
+- Only edit UI components and layout.
+- Keep all existing routes and functionality working.
+- Any new UI elements must be visually consistent and mobile responsive.
+
+WHAT TO ADD (UI BACKLINKS):
+
+1) GLOBAL BREADCRUMBS (top of main content area)
+- Show: Home > Dashboard > Collection Name > Mode (Tutor / Quiz / Flashcards / Notes / Worksheet)
+- Breadcrumb items should be clickable except the last item.
+- If collection not selected: Home > Dashboard
+- If on study page with collection selected: Home > Dashboard > [Collection]
+- If in a mode: Home > Dashboard > [Collection] > [Mode]
+- Must not block loading state: render skeleton or fallback text (“Loading…”)
+
+2) BACK BUTTONS (context-aware)
+Add a left-aligned “← Back” button at the top of:
+- Study mode pages (Tutor/Explain, Quiz, Flashcards, Notes, Worksheet, Memory)
+- Quiz Results screen
+- Reports / Settings pages (if they exist)
+Behavior:
+- If user is inside a collection: “← Back to Dashboard”
+- If user is inside a specific mode: “← Back to Collection”
+- If user came from a deeper view (like Quiz Results): “← Back to Quiz”
+Implementation preference:
+- Use React Router navigation (navigate(-1) where safe) BUT if history is empty, fallback to the correct route (Dashboard or Collection).
+
+3) DASHBOARD + HOME FOOTER NAV LINKS
+Add a minimal footer (or bottom nav on mobile) with:
+- Home
+- Dashboard
+- Study (if separate route)
+- Settings/Reports (only if route exists)
+These must be links and show active state.
+
+4) COLLECTION HEADER ACTIONS (inside collection view)
+Add a small header bar when a collection is selected:
+- Collection name (title)
+- “Manage uploads” button (opens existing upload dialog or routes to existing upload manager—DO NOT create new backend)
+- “Back to Dashboard” link
+
+5) VISUAL + UX REQUIREMENTS
+- Keep it clean, compact, no weird symbols/stars.
+- Buttons should use existing UI library (shadcn/ui Button).
+- Breadcrumbs should use subtle styling (small text, muted).
+- Must work on mobile: breadcrumbs can collapse (Home > … > Collection > Mode).
+- No new dependencies unless absolutely required (prefer none).
+
+DELIVERABLES:
+- List the exact files you changed.
+- For each file, describe what UI backlinks you added.
+- Include screenshots or a short description of expected UI appearance.
+- Confirm that no Supabase/edge function logic was changed.
+
+START HERE:
+Identify the main layout component (App shell/layout) and the routes for Home, Dashboard, Study, and mode pages. Implement breadcrumbs + back button as reusable components, then add them to each page with the correct “context-aware” behavior.
