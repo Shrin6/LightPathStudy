@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Study from "./pages/Study";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
+import PageBuilder from "./pages/PageBuilder";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/study" element={<Study />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/page-builder" element={<PageBuilder />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

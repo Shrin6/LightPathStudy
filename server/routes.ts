@@ -222,7 +222,7 @@ export function registerRoutes(app: Express): void {
         return res.status(500).json({ error: "AI request failed" });
       }
 
-      const data = await response.json();
+      const data = await response.json() as { choices?: { message?: { content?: string } }[] };
       res.json({ content: data.choices?.[0]?.message?.content || "" });
     } catch (error) {
       console.error("Chat error:", error);
@@ -270,6 +270,98 @@ export function registerRoutes(app: Express): void {
       res.status(500).json({ error: "Failed to submit report" });
     }
   });
+
+  app.post("/api/scrape-website", async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      let normalizedUrl = url.trim();
+      if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+        normalizedUrl = "https://" + normalizedUrl;
+      }
+
+      try {
+        new URL(normalizedUrl);
+      } catch {
+        return res.status(400).json({ error: "Invalid URL format" });
+      }
+
+      const businessInfo = await scrapeWebsite(normalizedUrl);
+      res.json({ success: true, data: businessInfo });
+    } catch (error) {
+      console.error("Scrape endpoint error:", error);
+      res.status(500).json({ error: "Failed to scrape website. Try manual mode." });
+    }
+  });
+}
+
+interface BusinessInfo {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  hours: string;
+  about: string;
+  services: string[];
+  tagline: string;
+}
+
+async function scrapeWebsite(url: string): Promise<Partial<BusinessInfo>> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; PageBuilder/1.0)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.status}`);
+    }
+
+    const html = await response.text();
+    
+    const extractMeta = (name: string): string => {
+      const match = html.match(new RegExp(`<meta[^>]*(?:name|property)=["']${name}["'][^>]*content=["']([^"']+)["']`, 'i'))
+        || html.match(new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*(?:name|property)=["']${name}["']`, 'i'));
+      return match?.[1]?.trim() || "";
+    };
+
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const name = titleMatch?.[1]?.trim().split(/[|\-–—]/)[0]?.trim() || "";
+    
+    const description = extractMeta("description") || extractMeta("og:description");
+    
+    const phoneMatch = html.match(/(?:tel:|href="tel:)?([\+]?[(]?[0-9]{1,3}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,9})/i)
+      || html.match(/(\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4})/);
+    const phone = phoneMatch?.[1]?.trim() || "";
+    
+    const emailMatch = html.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const email = emailMatch?.[1] || "";
+    
+    const addressMatch = html.match(/(\d+\s+[\w\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct)[,\s]+[\w\s]+,?\s*[A-Z]{2}\s*\d{5})/i);
+    const address = addressMatch?.[1]?.trim() || "";
+    
+    const h1Match = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+    const tagline = h1Match?.[1]?.trim() !== name ? h1Match?.[1]?.trim() : description.slice(0, 100) || "";
+
+    return {
+      name,
+      phone,
+      email,
+      address,
+      about: description,
+      tagline,
+      services: [],
+      hours: "",
+    };
+  } catch (error) {
+    console.error("Scrape error:", error);
+    throw error;
+  }
 }
 
 function getSystemPrompt(mode: string): string {
