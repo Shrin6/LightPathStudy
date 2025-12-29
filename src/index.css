@@ -2,121 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* 
+ * Lightpath Study Design System
+ * Clean academic app vibe - Notion/Khan Academy inspired
+ * All colors MUST be HSL
+ */
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
-    --foreground: 215 25% 27%;
+    /* Soft neutral background */
+    --background: 220 20% 97%;
+    --foreground: 220 20% 20%;
 
+    /* Clean white cards */
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 27%;
+    --card-foreground: 220 20% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 27%;
+    --popover-foreground: 220 20% 20%;
 
-    /* Deep educational blue */
-    --primary: 217 91% 60%;
+    /* Primary - Educational blue */
+    --primary: 220 85% 55%;
     --primary-foreground: 0 0% 100%;
     
-    /* Soft sage green */
-    --secondary: 142 35% 88%;
-    --secondary-foreground: 215 25% 27%;
+    /* Secondary - Soft sage */
+    --secondary: 160 25% 92%;
+    --secondary-foreground: 220 20% 20%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    /* Muted - Subtle gray */
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 45%;
 
-    /* Warm coral accent */
-    --accent: 14 90% 65%;
+    /* Accent - Warm coral for highlights */
+    --accent: 15 85% 60%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 75% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    /* Subtle borders */
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 220 85% 55%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    /* Custom study-focused tokens */
-    --success: 142 71% 45%;
+    /* Semantic colors */
+    --success: 145 65% 42%;
     --success-foreground: 0 0% 100%;
     
-    --warning: 38 92% 50%;
+    --warning: 40 95% 50%;
     --warning-foreground: 0 0% 100%;
     
-    --info: 199 89% 48%;
+    --info: 200 85% 50%;
     --info-foreground: 0 0% 100%;
 
     /* Gradient tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(199 89% 58%));
-    --gradient-secondary: linear-gradient(135deg, hsl(142 35% 88%), hsl(142 71% 75%));
-    --gradient-accent: linear-gradient(135deg, hsl(14 90% 65%), hsl(24 95% 60%));
+    --gradient-primary: linear-gradient(135deg, hsl(220 85% 55%), hsl(200 85% 55%));
+    --gradient-secondary: linear-gradient(135deg, hsl(160 25% 92%), hsl(145 65% 85%));
+    --gradient-accent: linear-gradient(135deg, hsl(15 85% 60%), hsl(25 90% 55%));
     
-    /* Shadow tokens */
-    --shadow-sm: 0 2px 4px hsl(217 91% 60% / 0.08);
-    --shadow-md: 0 4px 12px hsl(217 91% 60% / 0.12);
-    --shadow-lg: 0 8px 24px hsl(217 91% 60% / 0.16);
+    /* Refined shadows */
+    --shadow-sm: 0 1px 2px hsl(220 20% 20% / 0.04);
+    --shadow-md: 0 2px 8px hsl(220 20% 20% / 0.06);
+    --shadow-lg: 0 4px 16px hsl(220 20% 20% / 0.08);
     
+    /* Sidebar */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 215 25% 27%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-foreground: 220 20% 20%;
+    --sidebar-primary: 220 85% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 215 25% 27%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 220 15% 96%;
+    --sidebar-accent-foreground: 220 20% 20%;
+    --sidebar-border: 220 15% 92%;
+    --sidebar-ring: 220 85% 55%;
   }
 
   .dark {
-    --background: 215 28% 17%;
-    --foreground: 210 40% 98%;
+    --background: 220 25% 12%;
+    --foreground: 220 15% 95%;
 
-    --card: 215 25% 20%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 25% 15%;
+    --card-foreground: 220 15% 95%;
 
-    --popover: 215 25% 20%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 25% 15%;
+    --popover-foreground: 220 15% 95%;
 
-    --primary: 217 91% 60%;
+    --primary: 220 80% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 142 20% 30%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 160 15% 22%;
+    --secondary-foreground: 220 15% 95%;
 
-    --muted: 215 25% 23%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 20% 18%;
+    --muted-foreground: 220 15% 60%;
 
-    --accent: 14 90% 65%;
+    --accent: 15 80% 55%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 220 15% 95%;
 
-    --border: 215 25% 23%;
-    --input: 215 25% 23%;
-    --ring: 217 91% 60%;
+    --border: 220 20% 20%;
+    --input: 220 20% 20%;
+    --ring: 220 80% 60%;
     
-    --success: 142 71% 45%;
+    --success: 145 60% 40%;
     --success-foreground: 0 0% 100%;
     
-    --warning: 38 92% 50%;
+    --warning: 40 90% 45%;
     --warning-foreground: 0 0% 100%;
     
-    --info: 199 89% 48%;
+    --info: 200 80% 45%;
     --info-foreground: 0 0% 100%;
     
-    --sidebar-background: 215 28% 17%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 220 25% 12%;
+    --sidebar-foreground: 220 15% 95%;
+    --sidebar-primary: 220 80% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 25% 23%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 25% 23%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 220 20% 18%;
+    --sidebar-accent-foreground: 220 15% 95%;
+    --sidebar-border: 220 20% 20%;
+    --sidebar-ring: 220 80% 60%;
   }
 }
 
@@ -126,7 +133,20 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+  
+  /* Typography scale */
+  h1 {
+    @apply text-2xl font-bold tracking-tight;
+  }
+  
+  h2 {
+    @apply text-xl font-semibold tracking-tight;
+  }
+  
+  h3 {
+    @apply text-lg font-medium;
   }
 }
 
@@ -146,5 +166,21 @@ All colors MUST be HSL.
   
   .rotate-y-180 {
     transform: rotateY(180deg);
+  }
+  
+  /* Fade in animation */
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

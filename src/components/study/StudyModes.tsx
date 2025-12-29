@@ -9,33 +9,35 @@ interface StudyModesProps {
 }
 
 const modes = [
-  { id: "explain" as StudyMode, label: "Explain Mode", icon: BookOpen },
-  { id: "quiz" as StudyMode, label: "Quiz Mode", icon: GraduationCap },
-  { id: "flashcards" as StudyMode, label: "Flashcards", icon: StickyNote },
-  { id: "memory" as StudyMode, label: "Memory Tricks", icon: Lightbulb },
-  { id: "worksheet" as StudyMode, label: "Worksheet", icon: FileText },
-  { id: "notes" as StudyMode, label: "Simple Notes", icon: MessageSquare },
+  { id: "explain" as StudyMode, label: "Tutor", icon: BookOpen, description: "Ask questions" },
+  { id: "quiz" as StudyMode, label: "Quiz", icon: GraduationCap, description: "Test yourself" },
+  { id: "flashcards" as StudyMode, label: "Flashcards", icon: StickyNote, description: "Review cards" },
+  { id: "memory" as StudyMode, label: "Memory", icon: Lightbulb, description: "Get mnemonics" },
+  { id: "worksheet" as StudyMode, label: "Worksheet", icon: FileText, description: "Practice problems" },
+  { id: "notes" as StudyMode, label: "Notes", icon: MessageSquare, description: "Summarize content" },
 ];
 
 export const StudyModes = ({ mode, setMode }: StudyModesProps) => {
   return (
     <div className="space-y-2">
       <h3 className="font-medium text-sm">Study Modes</h3>
-      <div className="space-y-0.5">
+      <div className="grid grid-cols-2 gap-1.5">
         {modes.map((m) => {
           const Icon = m.icon;
+          const isActive = mode === m.id;
           return (
             <Button
               key={m.id}
-              variant={mode === m.id ? "default" : "ghost"}
+              variant={isActive ? "default" : "ghost"}
               className={cn(
-                "w-full justify-start h-8 text-xs px-2",
-                mode === m.id && "bg-primary text-primary-foreground"
+                "h-auto py-2 px-2 flex flex-col items-center gap-1 text-xs",
+                isActive && "bg-primary text-primary-foreground",
+                !isActive && "hover:bg-muted"
               )}
               onClick={() => setMode(m.id)}
             >
-              <Icon className="h-3 w-3 mr-1.5" />
-              {m.label}
+              <Icon className="h-4 w-4" />
+              <span className="font-medium">{m.label}</span>
             </Button>
           );
         })}

@@ -2,11 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { CollectionsList } from "./CollectionsList";
 import { StudyModes } from "./StudyModes";
 import { StudyMode, DocumentTypeHint } from "@/pages/Study";
-import { X, Menu } from "lucide-react";
+import { X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -15,6 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface Collection {
   id: string;
@@ -46,6 +50,8 @@ export const Sidebar = ({
 }: SidebarProps) => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [collectionsOpen, setCollectionsOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const fetchCollections = async () => {
     try {
@@ -77,7 +83,6 @@ export const Sidebar = ({
   useEffect(() => {
     fetchCollections();
 
-    // Subscribe to changes
     const channel = supabase
       .channel("collections-changes")
       .on(
@@ -107,58 +112,82 @@ export const Sidebar = ({
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 h-screen w-[220px] bg-card border-r flex flex-col z-50 transition-transform duration-200 overflow-x-hidden",
+          "fixed lg:sticky top-0 left-0 h-screen w-[240px] bg-card border-r flex flex-col z-50 transition-transform duration-200",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="px-2 py-2 border-b flex items-center justify-between">
-          <h2 className="font-semibold text-sm">Study Workspace</h2>
+        {/* Header */}
+        <div className="h-12 px-3 border-b flex items-center justify-between shrink-0">
+          <span className="font-semibold text-sm">Study Workspace</span>
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden h-6 w-6"
+            className="lg:hidden h-7 w-7"
             onClick={() => setIsOpen(false)}
           >
-            <X className="h-3 w-3" />
+            <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <ScrollArea className="flex-1 overflow-y-auto">
-          <div className="px-2 py-2 space-y-3">
-            <CollectionsList
-              collections={collections}
-              selectedCollection={selectedCollection}
-              setSelectedCollection={setSelectedCollection}
-              onRefresh={fetchCollections}
-              loading={loading}
-            />
-
-            <Separator />
-
+        <ScrollArea className="flex-1">
+          <div className="p-3 space-y-4">
+            {/* Study Modes */}
             <StudyModes mode={mode} setMode={setMode} />
 
-            <Separator />
+            {/* Collections */}
+            <Collapsible open={collectionsOpen} onOpenChange={setCollectionsOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-medium py-1 hover:text-primary transition-colors">
+                <span>Collections</span>
+                {collectionsOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <CollectionsList
+                  collections={collections}
+                  selectedCollection={selectedCollection}
+                  setSelectedCollection={setSelectedCollection}
+                  onRefresh={fetchCollections}
+                  loading={loading}
+                />
+              </CollapsibleContent>
+            </Collapsible>
 
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">
-                What are these materials?
-              </label>
-              <Select
-                value={documentTypeHint}
-                onValueChange={(value) => setDocumentTypeHint(value as DocumentTypeHint)}
-              >
-                <SelectTrigger className="w-full h-8 text-xs">
-                  <SelectValue placeholder="Select type..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MIXED_OR_UNSURE">Mixed / Not sure</SelectItem>
-                  <SelectItem value="NOTES_OR_STUDY_GUIDE">Notes / Study Guide</SelectItem>
-                  <SelectItem value="QUIZ_OR_TEST">Quiz / Test</SelectItem>
-                  <SelectItem value="WORKSHEET_OR_PROBLEM_SET">Worksheet / Problems</SelectItem>
-                  <SelectItem value="SLIDES_OR_IMAGES">Slides / Photos</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Document Type Settings */}
+            <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-medium py-1 hover:text-primary transition-colors">
+                <span>Settings</span>
+                {settingsOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">
+                    Document type hint
+                  </label>
+                  <Select
+                    value={documentTypeHint}
+                    onValueChange={(value) => setDocumentTypeHint(value as DocumentTypeHint)}
+                  >
+                    <SelectTrigger className="w-full h-8 text-xs">
+                      <SelectValue placeholder="Select type..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MIXED_OR_UNSURE">Mixed / Not sure</SelectItem>
+                      <SelectItem value="NOTES_OR_STUDY_GUIDE">Notes / Study Guide</SelectItem>
+                      <SelectItem value="QUIZ_OR_TEST">Quiz / Test</SelectItem>
+                      <SelectItem value="WORKSHEET_OR_PROBLEM_SET">Worksheet / Problems</SelectItem>
+                      <SelectItem value="SLIDES_OR_IMAGES">Slides / Photos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </ScrollArea>
       </aside>
