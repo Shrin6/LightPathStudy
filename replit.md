@@ -45,6 +45,13 @@ The application supports multiple study modes:
 5. Worksheet - Practice problems
 6. Notes - Simplified study notes
 
+### Recent UI Updates (Dec 2025)
+- **Modern SaaS-style dashboard**: Compact header (h-12) with Sparkles branding icon
+- **Study modes grid**: 2-column layout instead of vertical list for better space usage
+- **Quiz panel improvements**: Percentage clamping (0-100%), GraduationCap icon, compact card design
+- **Flashcard viewer**: Improved styling with smaller cards (max-w-xl), refined button layout
+- **Data-testid attributes**: Added for improved testing coverage
+
 ### Page Builder Feature
 A secondary feature for generating website homepage previews with:
 - **Industry Presets**: Restaurant, Plumbing, Lawyers, Health - each with unique themes and layouts
