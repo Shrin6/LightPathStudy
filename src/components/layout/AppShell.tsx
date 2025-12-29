@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Sparkles, Home, BookOpen, LayoutDashboard, Settings, LogOut, Menu, X } from "lucide-react";
+import { Sparkles, BookOpen, LayoutDashboard, Settings, LogOut, Menu, X } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -137,23 +137,10 @@ export function AppShell({
             >
               <Menu className="h-4 w-4" />
             </Button>
-            {showBackButton ? (
+            {showBackButton && (
               <BackButton fallbackPath="/dashboard" />
-            ) : (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="gap-2"
-                onClick={() => navigate("/")}
-                data-testid="button-home"
-              >
-                <Home className="h-4 w-4" />
-                <span className="hidden sm:inline">Home</span>
-              </Button>
             )}
-            <div className="hidden sm:block border-l pl-3 ml-1">
-              <Breadcrumbs items={defaultBreadcrumbs} />
-            </div>
+            <Breadcrumbs items={defaultBreadcrumbs} />
           </div>
           
           <div className="flex items-center gap-2">

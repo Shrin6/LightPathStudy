@@ -77,6 +77,9 @@ const CHANGELOG = [
   { date: "Nov 2024", text: "Enhanced Anki export" },
 ];
 
+// DEV_MODE: Set to true to bypass auth for testing
+const DEV_MODE = true;
+
 interface Collection {
   id: string;
   name: string;
@@ -102,17 +105,19 @@ const Dashboard = () => {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
+      if (!session && !DEV_MODE) {
         navigate("/");
       } else {
         setSession(session);
-        loadCollections(session.user.id);
+        if (session) {
+          loadCollections(session.user.id);
+        }
       }
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
+      if (!session && !DEV_MODE) {
         navigate("/");
       } else {
         setSession(session);
@@ -218,7 +223,7 @@ const Dashboard = () => {
   const handleCollectionChange = (collectionId: string) => {
     setSelectedCollectionId(collectionId);
     localStorage.setItem("lastCollectionId", collectionId);
-    if (session) {
+    if (session?.user?.id) {
       loadCollectionProgress(session.user.id, collectionId);
     }
   };
@@ -267,15 +272,15 @@ const Dashboard = () => {
     );
   }
 
-  if (!session) {
+  if (!session && !DEV_MODE) {
     return null;
   }
 
   return (
     <AppShell 
       onSignOut={handleSignOut} 
-      userEmail={session.user.email}
-      rightHeaderContent={<FeedbackDialog userId={session.user.id} />}
+      userEmail={session?.user?.email}
+      rightHeaderContent={session?.user?.id ? <FeedbackDialog userId={session.user.id} /> : undefined}
     >
       <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
