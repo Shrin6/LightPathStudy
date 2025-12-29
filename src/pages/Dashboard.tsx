@@ -321,22 +321,27 @@ const Dashboard = () => {
           <div className="md:col-span-2 space-y-6">
             {/* Collection Selector + Progress */}
             <Card>
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Collection Progress
-                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Collection Progress</CardTitle>
+                      <p className="text-xs text-muted-foreground">Track your learning journey</p>
+                    </div>
+                  </div>
                   {collections.length > 0 && (
                     <Select value={selectedCollectionId || ""} onValueChange={handleCollectionChange}>
-                      <SelectTrigger className="w-[200px]">
+                      <SelectTrigger className="w-[180px]" data-testid="select-collection">
                         <SelectValue placeholder="Select collection" />
                       </SelectTrigger>
                       <SelectContent>
                         {collections.map(c => (
-                          <SelectItem key={c.id} value={c.id}>
+                          <SelectItem key={c.id} value={c.id} data-testid={`collection-option-${c.id}`}>
                             <div className="flex items-center gap-2">
-                              <FolderOpen className="h-4 w-4" />
+                              <FolderOpen className="h-3.5 w-3.5" />
                               {c.name}
                             </div>
                           </SelectItem>
@@ -348,9 +353,12 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {collections.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No collections yet. Create one to start tracking progress!</p>
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                      <FolderOpen className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <p className="font-medium">No collections yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Create one to start tracking progress</p>
                   </div>
                 ) : (
                   <>
@@ -393,14 +401,23 @@ const Dashboard = () => {
 
             {/* Quick Actions */}
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Continue Learning</CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                    <BookOpen className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold">Continue Learning</CardTitle>
+                    <p className="text-xs text-muted-foreground">Pick up where you left off</p>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <Button 
                   className="w-full" 
                   size="lg"
                   onClick={() => navigate("/study")}
+                  data-testid="button-study-workspace"
                 >
                   <BookOpen className="h-5 w-5 mr-2" />
                   Go to Study Workspace
@@ -411,17 +428,22 @@ const Dashboard = () => {
 
             {/* What's New */}
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Sparkles className="h-5 w-5 text-warning" />
-                  What's New
-                </CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-md bg-amber-500/10 flex items-center justify-center">
+                    <Sparkles className="h-4 w-4 text-amber-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold">What's New</CardTitle>
+                    <p className="text-xs text-muted-foreground">Recent updates and improvements</p>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {CHANGELOG.map((item, i) => (
                     <li key={i} className="flex items-start gap-3 text-sm">
-                      <span className="text-xs text-muted-foreground whitespace-nowrap mt-0.5">{item.date}</span>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap mt-0.5 font-medium uppercase tracking-wide">{item.date}</span>
                       <span className="text-foreground">{item.text}</span>
                     </li>
                   ))}
@@ -433,17 +455,22 @@ const Dashboard = () => {
           {/* Right Column - Quote + Saved */}
           <div className="space-y-6">
             <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <BookOpen className="h-5 w-5 text-primary" />
-                  Quote of the Day
-                </CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                    <BookOpen className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold">Quote of the Day</CardTitle>
+                    <p className="text-xs text-muted-foreground">Daily inspiration</p>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <blockquote className="text-foreground italic border-l-2 border-primary pl-4">
+                <blockquote className="text-foreground italic border-l-2 border-primary pl-4 text-sm leading-relaxed">
                   "{todayQuote.text}"
                 </blockquote>
-                <p className="text-sm font-medium text-primary">— {todayQuote.reference}</p>
+                <p className="text-sm font-medium text-primary">- {todayQuote.reference}</p>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {todayQuote.meaning}
                 </p>
@@ -452,6 +479,7 @@ const Dashboard = () => {
                   size="sm" 
                   onClick={handleLikeQuote}
                   className="w-full"
+                  data-testid="button-save-quote"
                 >
                   <Heart className={`h-4 w-4 mr-2 ${isQuoteLiked ? "fill-current" : ""}`} />
                   {isQuoteLiked ? "Saved" : "Save Quote"}
@@ -462,15 +490,25 @@ const Dashboard = () => {
             {/* Saved Quotes Access */}
             {likedQuotes.length > 0 && (
               <Card>
-                <CardContent className="pt-4">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center">
+                      <BookMarked className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-semibold">Saved Quotes</CardTitle>
+                      <p className="text-xs text-muted-foreground">{likedQuotes.length} quote{likedQuotes.length > 1 ? 's' : ''} saved</p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0">
                   <Button 
                     variant="outline" 
                     className="w-full"
                     onClick={() => navigate("/settings?tab=saved")}
                     data-testid="button-saved-quotes"
                   >
-                    <BookMarked className="h-4 w-4 mr-2" />
-                    View {likedQuotes.length} Saved Quote{likedQuotes.length > 1 ? 's' : ''}
+                    View All Saved Quotes
                   </Button>
                 </CardContent>
               </Card>

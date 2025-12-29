@@ -52,8 +52,11 @@ src/
 
 ## Recent Changes
 
-**Dec 29, 2024 - Study Workspace UI Overhaul:**
-- Updated all study mode panels with consistent header design (icon + title + subtitle)
+**Dec 29, 2024 - Dashboard & Study Workspace UI Overhaul:**
+- Updated Dashboard with consistent header design (icon + title + subtitle pattern)
+- Improved progress card, quick actions, What's New section styling
+- Enhanced Quote of the Day and Saved Quotes cards
+- Updated all study mode panels with consistent header design
 - Improved sidebar with uppercase section labels, better spacing
 - Enhanced ChatPane with centered empty states, improved message bubbles
 - Updated QuizPanel with professional header and progress dialog
