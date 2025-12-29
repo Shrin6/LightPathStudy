@@ -302,34 +302,34 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
 
   if (!collectionId) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Select a collection to view flashcards</p>
+      <div className="flex items-center justify-center h-full p-4" data-testid="panel-flashcards-empty">
+        <p className="text-muted-foreground text-sm">Select a collection to view flashcards</p>
       </div>
     );
   }
 
   if (!collectionContent || collectionContent.length < 300) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Not enough content to generate flashcards. Upload more detailed files.</p>
+      <div className="flex items-center justify-center h-full p-4" data-testid="panel-flashcards-no-content">
+        <p className="text-muted-foreground text-sm">Not enough content to generate flashcards. Upload more detailed files.</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center h-full" data-testid="panel-flashcards-loading">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
 
   if (flashcards.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-4">
-          <p className="text-muted-foreground">No flashcards yet</p>
-          <Button onClick={generateFlashcards} disabled={isGenerating}>
+      <div className="flex items-center justify-center h-full p-4" data-testid="panel-flashcards-generate">
+        <div className="text-center space-y-3">
+          <p className="text-muted-foreground text-sm">No flashcards yet</p>
+          <Button onClick={generateFlashcards} disabled={isGenerating} size="sm">
             {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isGenerating ? 'Generating...' : 'Generate Flashcards'}
           </Button>
@@ -342,14 +342,14 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   const progress = ((knownCards.size + unknownCards.size) / flashcards.length) * 100;
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-4 md:p-8 space-y-6">
+    <div className="flex flex-col items-center justify-center h-full p-4 md:p-6 space-y-4" data-testid="panel-flashcards">
       {/* Progress indicator */}
-      <div className="w-full max-w-2xl space-y-2">
-        <div className="flex justify-between text-sm text-muted-foreground">
-          <span>Card {currentIndex + 1} of {flashcards.length}</span>
-          <span className="flex gap-4">
-            <span className="text-green-500">✓ {knownCards.size}</span>
-            <span className="text-red-500">✗ {unknownCards.size}</span>
+      <div className="w-full max-w-xl space-y-2">
+        <div className="flex justify-between items-center text-xs text-muted-foreground">
+          <span className="font-medium">Card {currentIndex + 1} of {flashcards.length}</span>
+          <span className="flex gap-3">
+            <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> {knownCards.size}</span>
+            <span className="flex items-center gap-1 text-red-500"><X className="h-3 w-3" /> {unknownCards.size}</span>
           </span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -362,7 +362,7 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
 
       {/* Flashcard with flip animation */}
       <div 
-        className="w-full max-w-2xl h-64 md:h-80 perspective-1000 cursor-pointer"
+        className="w-full max-w-xl h-56 md:h-64 perspective-1000 cursor-pointer"
         onClick={() => setFlipped(!flipped)}
       >
         <div 
@@ -424,36 +424,36 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
       </div>
 
       {/* Know it / Don't know it buttons */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Button
           variant="outline"
           onClick={handleDontKnowIt}
-          className="border-red-500/50 text-red-500 hover:bg-red-500/10"
-          size="lg"
+          className="border-red-500/30 text-red-500"
+          size="sm"
         >
-          <X className="h-5 w-5 mr-2" />
+          <X className="h-4 w-4 mr-1" />
           Don't Know
         </Button>
         <Button
           variant="outline"
           onClick={handleKnowIt}
-          className="border-green-500/50 text-green-500 hover:bg-green-500/10"
-          size="lg"
+          className="border-green-600/30 text-green-600"
+          size="sm"
         >
-          <Check className="h-5 w-5 mr-2" />
+          <Check className="h-4 w-4 mr-1" />
           Know It
         </Button>
       </div>
 
       {/* Navigation and actions */}
-      <div className="flex items-center gap-3 flex-wrap justify-center">
+      <div className="flex items-center gap-2 flex-wrap justify-center">
         <Button
           variant="ghost"
           onClick={handlePrevious}
           disabled={currentIndex === 0}
           size="sm"
         >
-          <ChevronLeft className="h-4 w-4 mr-1" />
+          <ChevronLeft className="h-4 w-4" />
           Prev
         </Button>
         <Button
@@ -463,18 +463,16 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
           size="sm"
         >
           Next
-          <ChevronRight className="h-4 w-4 ml-1" />
+          <ChevronRight className="h-4 w-4" />
         </Button>
         <Button variant="ghost" onClick={shuffleCards} size="sm">
-          <Shuffle className="h-4 w-4 mr-1" />
-          Shuffle
+          <Shuffle className="h-4 w-4" />
         </Button>
         <Button variant="ghost" onClick={exportToAnki} size="sm">
-          <Download className="h-4 w-4 mr-1" />
-          Export
+          <Download className="h-4 w-4" />
         </Button>
         <Button onClick={generateFlashcards} disabled={isGenerating} variant="outline" size="sm">
-          {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isGenerating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
           Regenerate
         </Button>
       </div>
