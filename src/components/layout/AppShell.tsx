@@ -41,6 +41,7 @@ export function AppShell({ children, onSignOut, userEmail, rightHeaderContent }:
               size="icon" 
               className="ml-auto md:hidden"
               onClick={() => setSidebarOpen(false)}
+              data-testid="button-sidebar-close"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -97,6 +98,7 @@ export function AppShell({ children, onSignOut, userEmail, rightHeaderContent }:
         <div 
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={() => setSidebarOpen(false)}
+          data-testid="overlay-sidebar-backdrop"
         />
       )}
       

@@ -45,12 +45,21 @@ The application supports multiple study modes:
 5. Worksheet - Practice problems
 6. Notes - Simplified study notes
 
+### Layout Components (Dec 2025)
+- **PublicShell**: Layout wrapper for public pages (Home) with sticky nav, footer
+  - Location: `src/components/layout/PublicShell.tsx`
+- **AppShell**: Layout wrapper for authenticated pages (Dashboard) with sidebar navigation
+  - Location: `src/components/layout/AppShell.tsx`
+  - Responsive sidebar with mobile hamburger menu
+- **Study Layout**: Custom TopBar + Sidebar for the Study workspace (specialized for study modes)
+
 ### Recent UI Updates (Dec 2025)
-- **Modern SaaS-style dashboard**: Compact header (h-12) with Sparkles branding icon
-- **Study modes grid**: 2-column layout instead of vertical list for better space usage
-- **Quiz panel improvements**: Percentage clamping (0-100%), GraduationCap icon, compact card design
-- **Flashcard viewer**: Improved styling with smaller cards (max-w-xl), refined button layout
-- **Data-testid attributes**: Added for improved testing coverage
+- **Modern landing page**: Hero section, feature cards, how-it-works steps, CTA
+- **Dashboard redesign**: Summary stat cards (4-column grid), collection progress, quick actions
+- **Study workspace**: Compact header (h-12), 2-column study modes grid, Sparkles branding
+- **Quiz panel**: Percentage clamping (0-100%), GraduationCap icon, compact cards
+- **Flashcard viewer**: Smaller cards (max-w-xl), refined button layout
+- **Data-testid attributes**: Comprehensive coverage for testing
 
 ### Page Builder Feature
 A secondary feature for generating website homepage previews with:
