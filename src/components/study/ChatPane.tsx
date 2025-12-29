@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Send, Loader2, Flag } from "lucide-react";
+import { Send, Loader2, Flag, BookOpen, Lightbulb } from "lucide-react";
 import { StudyMode, DocumentTypeHint } from "@/pages/Study";
 import { ProofButtons } from "./ProofButtons";
 import { ReportDialog, ReportPayload } from "./ReportDialog";
@@ -304,50 +304,65 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
     }
   };
 
-  const getModeTitle = () => {
-    const titles: Record<StudyMode, string> = {
-      explain: "Explain Mode - Ask questions about your materials",
-      quiz: "Quiz Mode - Test your knowledge",
-      flashcards: "Flashcards Mode",
-      memory: "Memory Tricks - Get mnemonics and shortcuts",
-      worksheet: "Worksheet Mode",
-      notes: "Simple Notes Mode",
+  const getModeConfig = () => {
+    const configs: Record<StudyMode, { title: string; subtitle: string; icon: any }> = {
+      explain: { title: "AI Tutor", subtitle: "Ask questions about your materials", icon: BookOpen },
+      quiz: { title: "Quiz Mode", subtitle: "Test your knowledge", icon: BookOpen },
+      flashcards: { title: "Flashcards", subtitle: "Review with cards", icon: BookOpen },
+      memory: { title: "Memory Tricks", subtitle: "Get mnemonics and shortcuts", icon: Lightbulb },
+      worksheet: { title: "Worksheet", subtitle: "Practice problems", icon: BookOpen },
+      notes: { title: "Simple Notes", subtitle: "Key points summary", icon: BookOpen },
     };
-    return titles[mode];
+    return configs[mode];
   };
 
+  const modeConfig = getModeConfig();
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b p-4 bg-card">
-        <h2 className="font-semibold">{getModeTitle()}</h2>
-        {!collectionId && (
-          <p className="text-sm text-muted-foreground mt-1">
-            Select a collection from the sidebar to start
-          </p>
-        )}
+    <div className="flex flex-col h-full bg-background">
+      <div className="border-b px-4 py-3 bg-card shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+            <modeConfig.icon className="h-4 w-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="font-semibold text-sm" data-testid="text-mode-title">{modeConfig.title}</h2>
+            <p className="text-xs text-muted-foreground truncate">
+              {!collectionId ? "Select a collection to start" : modeConfig.subtitle}
+            </p>
+          </div>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-center">
-            <div className="space-y-2 text-muted-foreground">
-              <p>Start a conversation with your AI tutor</p>
-              <p className="text-sm">All responses are based only on your uploaded materials</p>
+          <div className="flex items-center justify-center h-full text-center py-12">
+            <div className="space-y-3 max-w-sm">
+              <div className="w-12 h-12 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                <modeConfig.icon className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium text-foreground">Start a conversation</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  All responses are based only on your uploaded materials
+                </p>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 max-w-3xl mx-auto">
             {messages.map((msg, idx) => (
               <div
                 key={msg.id || idx}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                data-testid={`message-${msg.role}-${idx}`}
               >
-                <div className="max-w-[80%]">
+                <div className="max-w-[85%]">
                   <div
-                    className={`p-3 rounded-lg ${
+                    className={`px-4 py-3 rounded-lg ${
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
+                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                        : "bg-muted rounded-bl-sm"
                     }`}
                   >
                     <div 
@@ -373,7 +388,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
                     )}
                   </div>
                   {msg.role === "assistant" && !isTyping && (
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-1 mt-1.5 ml-1">
                       <ProofButtons
                         onGotIt={() => handleProofSignal("GOT_IT", idx)}
                         onNotSure={() => handleProofSignal("NOT_SURE", idx)}
@@ -384,7 +399,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
                         feature="tutor_message"
                         payload={getReportPayload(msg, idx)}
                         trigger={
-                          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7 px-2">
+                          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-6 w-6 p-0">
                             <Flag className="h-3 w-3" />
                           </Button>
                         }
@@ -396,11 +411,11 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
             ))}
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-muted p-3 rounded-lg">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                    <div className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                    <div className="w-2 h-2 bg-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                <div className="bg-muted px-4 py-3 rounded-lg rounded-bl-sm">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-2 h-2 bg-foreground/30 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
                 </div>
               </div>
@@ -409,16 +424,12 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
         )}
       </ScrollArea>
 
-      <div className="border-t p-4 bg-card">
-        <div className="flex gap-2">
+      <div className="border-t p-3 bg-card shrink-0">
+        <div className="flex gap-2 max-w-3xl mx-auto">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              collectionId
-                ? "Type your question..."
-                : "Select a collection first..."
-            }
+            placeholder={collectionId ? "Type your question..." : "Select a collection first..."}
             disabled={!collectionId || loading}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -426,13 +437,15 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
                 sendMessage();
               }
             }}
-            className="min-h-[60px]"
+            className="min-h-[48px] max-h-[120px] resize-none text-sm"
+            data-testid="input-message"
           />
           <Button
             onClick={sendMessage}
             disabled={!collectionId || !input.trim() || loading}
             size="icon"
-            className="h-[60px] w-[60px]"
+            className="h-12 w-12 shrink-0"
+            data-testid="button-send"
           >
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />

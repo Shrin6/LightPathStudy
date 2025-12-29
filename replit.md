@@ -52,6 +52,17 @@ src/
 
 ## Recent Changes
 
+**Dec 29, 2024 - Study Workspace UI Overhaul:**
+- Updated all study mode panels with consistent header design (icon + title + subtitle)
+- Improved sidebar with uppercase section labels, better spacing
+- Enhanced ChatPane with centered empty states, improved message bubbles
+- Updated QuizPanel with professional header and progress dialog
+- Updated FlashcardsViewer with card count in header
+- Improved CollectionsList with file counts and cleaner selection states
+- Updated StudyModes with cleaner button layout
+- Added Material Type dropdown with professional styling
+- All components now have consistent data-testid attributes
+
 **Dec 2024 - UI Navigation Makeover:**
 - Added breadcrumbs component for context-aware navigation
 - Added mobile footer navigation

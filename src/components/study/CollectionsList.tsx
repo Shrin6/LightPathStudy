@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Folder, FileText, Trash2, Upload, MoveRight, RefreshCw } from "lucide-react";
+import { Plus, FolderOpen, FileText, Trash2, Upload, MoveRight, RefreshCw } from "lucide-react";
 import { FileUploadDialog } from "./FileUploadDialog";
 import { cn } from "@/lib/utils";
 
@@ -42,19 +42,16 @@ export const CollectionsList = ({
   const handleReparseFile = async (fileId: string, filePath: string, collectionId: string) => {
     setReparsingFileId(fileId);
     try {
-      // Set processing flag
       await supabase
         .from('uploaded_files')
         .update({ processing: true })
         .eq('id', fileId);
 
-      // Delete existing chunks for this file
       await supabase
         .from('document_chunks')
         .delete()
         .eq('file_id', fileId);
 
-      // Trigger parse-document function
       const { error } = await supabase.functions.invoke('parse-document', {
         body: { fileId, filePath, collectionId }
       });
@@ -153,20 +150,26 @@ export const CollectionsList = ({
   };
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground">Loading collections...</div>;
+    return (
+      <div className="space-y-2">
+        <div className="h-4 bg-muted rounded animate-pulse" />
+        <div className="h-10 bg-muted rounded animate-pulse" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-1">
-        <h3 className="font-medium text-xs">Collections</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide px-1">Collections</h3>
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button 
               size="sm" 
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-sm h-6 text-xs px-2"
+              className="h-6 text-xs px-2 gap-1"
+              data-testid="button-new-collection"
             >
-              <Plus className="h-3 w-3 mr-1" />
+              <Plus className="h-3 w-3" />
               New
             </Button>
           </DialogTrigger>
@@ -180,8 +183,9 @@ export const CollectionsList = ({
                 value={newCollectionName}
                 onChange={(e) => setNewCollectionName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleCreateCollection()}
+                data-testid="input-collection-name"
               />
-              <Button onClick={handleCreateCollection} className="w-full">
+              <Button onClick={handleCreateCollection} className="w-full" data-testid="button-create-collection">
                 Create Collection
               </Button>
             </div>
@@ -190,95 +194,125 @@ export const CollectionsList = ({
       </div>
 
       {collections.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No collections yet. Create one to get started!</p>
+        <div className="text-center py-4">
+          <p className="text-xs text-muted-foreground">No collections yet.</p>
+          <p className="text-xs text-muted-foreground">Create one to get started!</p>
+        </div>
       ) : (
-        <div className="space-y-1.5">
-          {collections.map((collection) => (
-            <div
-              key={collection.id}
-              className={cn(
-                "p-1.5 rounded-md border cursor-pointer hover:bg-accent/50 transition-colors",
-                selectedCollection === collection.id && "bg-accent border-primary"
-              )}
-              onClick={() => setSelectedCollection(collection.id)}
-            >
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-1 min-w-0">
-                  <Folder className="h-3 w-3 text-primary flex-shrink-0" />
-                  <span className="font-medium text-xs truncate flex-1">{collection.name}</span>
-                </div>
-                <div className="flex items-center gap-0.5 pl-4">
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-4 w-4 border-border hover:bg-primary hover:text-primary-foreground transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openUploadDialog(collection.id);
-                    }}
-                    title="Upload files"
-                  >
-                    <Upload className="h-2.5 w-2.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-4 w-4 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteCollection(collection.id);
-                    }}
-                    title="Delete collection"
-                  >
-                    <Trash2 className="h-2.5 w-2.5" />
-                  </Button>
+        <div className="space-y-1">
+          {collections.map((collection) => {
+            const isSelected = selectedCollection === collection.id;
+            const fileCount = collection.uploaded_files?.length || 0;
+            
+            return (
+              <div
+                key={collection.id}
+                className={cn(
+                  "group rounded-md border transition-all cursor-pointer",
+                  isSelected 
+                    ? "bg-primary/5 border-primary/30 shadow-sm" 
+                    : "border-transparent hover:bg-accent/50"
+                )}
+                onClick={() => setSelectedCollection(collection.id)}
+                data-testid={`collection-${collection.id}`}
+              >
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className={cn(
+                      "h-4 w-4 shrink-0",
+                      isSelected ? "text-primary" : "text-muted-foreground"
+                    )} />
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "text-sm font-medium truncate",
+                        isSelected && "text-primary"
+                      )}>
+                        {collection.name}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {fileCount} file{fileCount !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openUploadDialog(collection.id);
+                        }}
+                        title="Upload files"
+                        data-testid={`button-upload-${collection.id}`}
+                      >
+                        <Upload className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCollection(collection.id);
+                        }}
+                        title="Delete collection"
+                        data-testid={`button-delete-${collection.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isSelected && collection.uploaded_files && collection.uploaded_files.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                      {collection.uploaded_files.map((file: any) => (
+                        <div 
+                          key={file.id} 
+                          className="flex items-center gap-2 text-xs text-muted-foreground group/file"
+                        >
+                          <FileText className="h-3 w-3 shrink-0" />
+                          <span className="truncate flex-1">{file.file_name}</span>
+                          {file.processing && (
+                            <RefreshCw className="h-3 w-3 animate-spin text-primary shrink-0" />
+                          )}
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-5 w-5"
+                              disabled={reparsingFileId === file.id || file.processing}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReparseFile(file.id, file.file_path, collection.id);
+                              }}
+                              title="Re-parse file"
+                            >
+                              <RefreshCw className={cn(
+                                "h-2.5 w-2.5",
+                                reparsingFileId === file.id && "animate-spin"
+                              )} />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-5 w-5"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openMoveDialog(file.id, file.file_name, collection.id);
+                              }}
+                              title="Move to another collection"
+                            >
+                              <MoveRight className="h-2.5 w-2.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {collection.uploaded_files && collection.uploaded_files.length > 0 && (
-                <div className="mt-1.5 space-y-0.5">
-                  {collection.uploaded_files.map((file: any) => (
-                    <div key={file.id} className="flex items-center justify-between gap-1 text-[10px] text-muted-foreground pl-5 pr-1 group">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <FileText className="h-2.5 w-2.5 flex-shrink-0" />
-                        <span className="truncate">{file.file_name}</span>
-                        {file.processing && (
-                          <RefreshCw className="h-2.5 w-2.5 animate-spin text-primary" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-3 w-3"
-                          disabled={reparsingFileId === file.id || file.processing}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleReparseFile(file.id, file.file_path, collection.id);
-                          }}
-                          title="Re-parse file"
-                        >
-                          <RefreshCw className={`h-2 w-2 ${reparsingFileId === file.id ? 'animate-spin' : ''}`} />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-3 w-3"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openMoveDialog(file.id, file.file_name, collection.id);
-                          }}
-                          title="Move to another collection"
-                        >
-                          <MoveRight className="h-2 w-2" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -293,14 +327,14 @@ export const CollectionsList = ({
       <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Move File to Collection</DialogTitle>
+            <DialogTitle>Move File</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Move <span className="font-semibold">{selectedFile?.name}</span> to:
+              Move <span className="font-medium text-foreground">{selectedFile?.name}</span> to:
             </p>
             <Select value={targetCollectionId} onValueChange={setTargetCollectionId}>
-              <SelectTrigger>
+              <SelectTrigger data-testid="select-target-collection">
                 <SelectValue placeholder="Select collection" />
               </SelectTrigger>
               <SelectContent>
@@ -313,7 +347,7 @@ export const CollectionsList = ({
                   ))}
               </SelectContent>
             </Select>
-            <Button onClick={handleMoveFile} className="w-full">
+            <Button onClick={handleMoveFile} className="w-full" data-testid="button-move-file">
               Move File
             </Button>
           </div>
