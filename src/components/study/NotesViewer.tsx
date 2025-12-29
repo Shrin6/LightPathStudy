@@ -193,34 +193,35 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint 
 
   if (!collectionId) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Select a collection to view notes</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <p className="text-sm text-muted-foreground">Select a collection to view notes</p>
       </div>
     );
   }
 
   if (!collectionContent || collectionContent.length < 300) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Not enough content to generate notes. Upload more detailed files.</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <p className="text-sm text-muted-foreground text-center">Not enough content to generate notes.<br/>Upload more detailed files.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full p-4">
-      <div className="flex justify-between items-center mb-4 gap-2 flex-wrap">
-        <h2 className="text-xl font-semibold">Simple Notes</h2>
-        <div className="flex gap-2 flex-wrap">
+    <div className="flex flex-col h-full">
+      <div className="flex justify-between items-center px-4 py-3 border-b bg-card/50 gap-2 flex-wrap">
+        <h2 className="font-medium text-sm">Simple Notes</h2>
+        <div className="flex gap-1.5 flex-wrap">
           <label htmlFor="image-upload">
             <Button
               variant="outline"
               size="sm"
               disabled={isProcessingImage || !collectionId}
               asChild
+              className="h-7 text-xs"
             >
               <span className="cursor-pointer">
-                {isProcessingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />}
+                {isProcessingImage ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : <ImageIcon className="mr-1.5 h-3 w-3" />}
                 {isProcessingImage ? 'Processing...' : 'Upload Image'}
               </span>
             </Button>
@@ -237,8 +238,9 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint 
             onClick={generateNotes} 
             disabled={isGenerating || !collectionId || collectionContent.length < 300}
             size="sm"
+            className="h-7 text-xs"
           >
-            {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isGenerating && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
             {isGenerating ? 'Generating...' : 'Generate Notes'}
           </Button>
           <Button
@@ -246,14 +248,15 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint 
             disabled={!notes}
             variant="outline"
             size="sm"
+            className="h-7 text-xs"
           >
-            <Copy className="mr-2 h-4 w-4" />
+            <Copy className="mr-1.5 h-3 w-3" />
             Copy
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button disabled={!notes} variant="outline" size="sm">
-                <Download className="mr-2 h-4 w-4" />
+              <Button disabled={!notes} variant="outline" size="sm" className="h-7 text-xs">
+                <Download className="mr-1.5 h-3 w-3" />
                 Export
               </Button>
             </DropdownMenuTrigger>
@@ -272,11 +275,11 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint 
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto border rounded-lg p-4 bg-background">
+      <div className="flex-1 overflow-auto p-4">
         {notes ? (
-          <div className="prose prose-sm max-w-none whitespace-pre-wrap">{notes}</div>
+          <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm">{notes}</div>
         ) : (
-          <p className="text-sm text-muted-foreground">Click "Generate Notes" to create simple bullet-point notes from your materials</p>
+          <p className="text-sm text-muted-foreground text-center py-8">Click "Generate Notes" to create bullet-point notes from your materials</p>
         )}
       </div>
     </div>

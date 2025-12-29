@@ -474,26 +474,26 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
 
   if (!collectionId) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Select a collection to start a quiz</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <p className="text-sm text-muted-foreground">Select a collection to start a quiz</p>
       </div>
     );
   }
 
   if (!collectionContent || collectionContent.length < 20) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Not enough content to generate quiz. Upload some files first.</p>
+      <div className="flex items-center justify-center h-full p-6">
+        <p className="text-sm text-muted-foreground text-center">Not enough content to generate quiz.<br/>Upload some files first.</p>
       </div>
     );
   }
 
   if (questions.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-4">
-          <p className="text-muted-foreground">Ready to test your knowledge?</p>
-          <Button onClick={generateQuiz} disabled={isGenerating}>
+      <div className="flex items-center justify-center h-full p-6">
+        <div className="text-center space-y-3">
+          <p className="text-sm text-muted-foreground">Ready to test your knowledge?</p>
+          <Button onClick={generateQuiz} disabled={isGenerating} size="sm">
             {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isGenerating ? "Generating..." : "Generate Quiz"}
           </Button>
@@ -503,41 +503,41 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
   }
 
   if (quizComplete) {
-    const percentage = Math.round((score / questions.length) * 100);
+    const percentage = Math.min(100, Math.round((score / questions.length) * 100));
     const overallMastery = getOverallMastery();
     
     return (
       <div className="flex items-center justify-center h-full p-4">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <CardTitle>Quiz Complete!</CardTitle>
+        <Card className="w-full max-w-lg">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Quiz Complete!</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-3xl font-bold">{percentage}%</p>
-                <p className="text-sm text-muted-foreground">Score</p>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div className="p-3 rounded-lg bg-muted">
+                <p className="text-2xl font-bold">{percentage}%</p>
+                <p className="text-xs text-muted-foreground">Score</p>
               </div>
-              <div className="p-4 rounded-lg bg-muted">
-                <p className="text-3xl font-bold">{overallMastery}%</p>
-                <p className="text-sm text-muted-foreground">Understanding</p>
+              <div className="p-3 rounded-lg bg-muted">
+                <p className="text-2xl font-bold">{overallMastery}%</p>
+                <p className="text-xs text-muted-foreground">Understanding</p>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <p className="font-medium text-sm">Skill Breakdown</p>
+            <div className="space-y-1.5">
+              <p className="font-medium text-xs">Skill Breakdown</p>
               {Object.entries(masteryBySkill).map(([tag, skill]) => (
-                <div key={tag} className="flex items-center gap-2 text-sm">
+                <div key={tag} className="flex items-center gap-2 text-xs">
                   {getSkillIcon(skill)}
-                  <span className="flex-1">{tag.replace(/_/g, " ")}</span>
+                  <span className="flex-1 capitalize">{tag.replace(/_/g, " ")}</span>
                   <span className="text-muted-foreground">{skill.correct}/{skill.total}</span>
                 </div>
               ))}
             </div>
 
-            <div className="flex gap-2 justify-center">
-              <Button onClick={generateQuiz}>Take Another Quiz</Button>
-              <Button variant="outline" onClick={() => setQuizComplete(false)}>
+            <div className="flex gap-2 justify-center pt-2">
+              <Button onClick={generateQuiz} size="sm">Take Another Quiz</Button>
+              <Button variant="outline" size="sm" onClick={() => setQuizComplete(false)}>
                 Review Answers
               </Button>
             </div>
@@ -553,19 +553,20 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
 
   return (
     <div className="flex items-center justify-center h-full p-4">
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="pb-3">
+      <Card className="w-full max-w-lg">
+        <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <CardTitle className="text-base">
+            <CardTitle className="text-sm font-medium">
               Q{currentIndex + 1}/{questions.length}
             </CardTitle>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-muted-foreground">Score: {score}/{currentIndex}</span>
-              <span className="text-muted-foreground">Understanding: {overallMastery}%</span>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>Score: {score}/{currentIndex}</span>
+              <span>•</span>
+              <span>{overallMastery}% mastery</span>
               <Dialog open={showProgress} onOpenChange={setShowProgress}>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 px-2">
-                    <BarChart3 className="h-4 w-4" />
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                    <BarChart3 className="h-3.5 w-3.5" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
