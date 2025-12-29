@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X, Flag, StickyNote } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X, Flag } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { validateCollectionContent, filterMeaningfulCards } from "@/lib/relevanceCheck";
@@ -300,73 +300,39 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
     toast.success("Flashcards exported!");
   };
 
-  const FlashcardsHeader = ({ subtitle = "Review with spaced repetition" }: { subtitle?: string }) => (
-    <div className="border-b px-4 py-3 bg-card shrink-0">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-          <StickyNote className="h-4 w-4 text-primary" />
-        </div>
-        <div>
-          <h2 className="font-semibold text-sm">Flashcards</h2>
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
-        </div>
-      </div>
-    </div>
-  );
-
   if (!collectionId) {
     return (
-      <div className="flex flex-col h-full">
-        <FlashcardsHeader />
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm">Select a collection to view flashcards</p>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Select a collection to view flashcards</p>
       </div>
     );
   }
 
   if (!collectionContent || collectionContent.length < 300) {
     return (
-      <div className="flex flex-col h-full">
-        <FlashcardsHeader />
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm text-center px-4">
-            Not enough content to generate flashcards.<br />Upload more detailed files.
-          </p>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Not enough content to generate flashcards. Upload more detailed files.</p>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
-        <FlashcardsHeader />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (flashcards.length === 0) {
     return (
-      <div className="flex flex-col h-full">
-        <FlashcardsHeader />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-              <StickyNote className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium">No flashcards yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Generate cards from your study materials</p>
-            </div>
-            <Button onClick={generateFlashcards} disabled={isGenerating} data-testid="button-generate-flashcards">
-              {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isGenerating ? 'Generating...' : 'Generate Flashcards'}
-            </Button>
-          </div>
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">No flashcards yet</p>
+          <Button onClick={generateFlashcards} disabled={isGenerating}>
+            {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isGenerating ? 'Generating...' : 'Generate Flashcards'}
+          </Button>
         </div>
       </div>
     );
@@ -376,33 +342,23 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   const progress = ((knownCards.size + unknownCards.size) / flashcards.length) * 100;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b px-4 py-3 bg-card shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <StickyNote className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sm">Card {currentIndex + 1} of {flashcards.length}</h2>
-              <p className="text-xs text-muted-foreground flex gap-3">
-                <span className="text-green-600">{knownCards.size} known</span>
-                <span className="text-red-600">{unknownCards.size} reviewing</span>
-              </p>
-            </div>
-          </div>
+    <div className="flex flex-col items-center justify-center h-full p-4 md:p-8 space-y-6">
+      {/* Progress indicator */}
+      <div className="w-full max-w-2xl space-y-2">
+        <div className="flex justify-between text-sm text-muted-foreground">
+          <span>Card {currentIndex + 1} of {flashcards.length}</span>
+          <span className="flex gap-4">
+            <span className="text-green-500">✓ {knownCards.size}</span>
+            <span className="text-red-500">✗ {unknownCards.size}</span>
+          </span>
+        </div>
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-primary transition-all duration-300" 
+            style={{ width: `${progress}%` }} 
+          />
         </div>
       </div>
-      
-      <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 space-y-6 overflow-auto">
-        <div className="w-full max-w-2xl space-y-2">
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-primary transition-all duration-300" 
-              style={{ width: `${progress}%` }} 
-            />
-          </div>
-        </div>
 
       {/* Flashcard with flip animation */}
       <div 
@@ -521,7 +477,6 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
           {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Regenerate
         </Button>
-      </div>
       </div>
     </div>
   );

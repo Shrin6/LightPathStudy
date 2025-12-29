@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles, Flag, GraduationCap } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles, Flag } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
@@ -474,76 +474,29 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
 
   if (!collectionId) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="border-b px-4 py-3 bg-card">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <GraduationCap className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sm">Quiz Mode</h2>
-              <p className="text-xs text-muted-foreground">Test your knowledge</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm">Select a collection to start</p>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Select a collection to start a quiz</p>
       </div>
     );
   }
 
   if (!collectionContent || collectionContent.length < 20) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="border-b px-4 py-3 bg-card">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <GraduationCap className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sm">Quiz Mode</h2>
-              <p className="text-xs text-muted-foreground">Test your knowledge</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm text-center px-4">
-            Not enough content to generate quiz.<br />Upload some files first.
-          </p>
-        </div>
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Not enough content to generate quiz. Upload some files first.</p>
       </div>
     );
   }
 
   if (questions.length === 0) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="border-b px-4 py-3 bg-card">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <GraduationCap className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sm">Quiz Mode</h2>
-              <p className="text-xs text-muted-foreground">Test your knowledge</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-              <GraduationCap className="h-8 w-8 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium">Ready to test your knowledge?</p>
-              <p className="text-sm text-muted-foreground mt-1">Generate a 5-question quiz from your materials</p>
-            </div>
-            <Button onClick={generateQuiz} disabled={isGenerating} data-testid="button-generate-quiz">
-              {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isGenerating ? "Generating..." : "Generate Quiz"}
-            </Button>
-          </div>
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Ready to test your knowledge?</p>
+          <Button onClick={generateQuiz} disabled={isGenerating}>
+            {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isGenerating ? "Generating..." : "Generate Quiz"}
+          </Button>
         </div>
       </div>
     );
@@ -554,54 +507,42 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
     const overallMastery = getOverallMastery();
     
     return (
-      <div className="flex flex-col h-full">
-        <div className="border-b px-4 py-3 bg-card">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <GraduationCap className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sm">Quiz Complete</h2>
-              <p className="text-xs text-muted-foreground">Review your results</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-4">
-          <Card className="w-full max-w-lg">
-            <CardContent className="pt-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div className="p-4 rounded-lg bg-muted">
-                  <p className="text-3xl font-bold text-primary" data-testid="text-quiz-score">{percentage}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">Score</p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted">
-                  <p className="text-3xl font-bold">{overallMastery}%</p>
-                  <p className="text-xs text-muted-foreground mt-1">Understanding</p>
-                </div>
+      <div className="flex items-center justify-center h-full p-4">
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <CardTitle>Quiz Complete!</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-3xl font-bold">{percentage}%</p>
+                <p className="text-sm text-muted-foreground">Score</p>
               </div>
-
-              {Object.entries(masteryBySkill).length > 0 && (
-                <div className="space-y-2">
-                  <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Skill Breakdown</p>
-                  {Object.entries(masteryBySkill).map(([tag, skill]) => (
-                    <div key={tag} className="flex items-center gap-2 text-sm">
-                      {getSkillIcon(skill)}
-                      <span className="flex-1 capitalize">{tag.replace(/_/g, " ")}</span>
-                      <span className="text-muted-foreground text-xs">{skill.correct}/{skill.total}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-2 justify-center pt-2">
-                <Button onClick={generateQuiz} data-testid="button-retry-quiz">Take Another Quiz</Button>
-                <Button variant="outline" onClick={() => setQuizComplete(false)} data-testid="button-review-quiz">
-                  Review Answers
-                </Button>
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-3xl font-bold">{overallMastery}%</p>
+                <p className="text-sm text-muted-foreground">Understanding</p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-medium text-sm">Skill Breakdown</p>
+              {Object.entries(masteryBySkill).map(([tag, skill]) => (
+                <div key={tag} className="flex items-center gap-2 text-sm">
+                  {getSkillIcon(skill)}
+                  <span className="flex-1">{tag.replace(/_/g, " ")}</span>
+                  <span className="text-muted-foreground">{skill.correct}/{skill.total}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 justify-center">
+              <Button onClick={generateQuiz}>Take Another Quiz</Button>
+              <Button variant="outline" onClick={() => setQuizComplete(false)}>
+                Review Answers
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -611,65 +552,60 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
   const overallMastery = getOverallMastery();
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b px-4 py-3 bg-card shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-              <GraduationCap className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sm">Question {currentIndex + 1} of {questions.length}</h2>
-              <p className="text-xs text-muted-foreground">Score: {score} correct</p>
+    <div className="flex items-center justify-center h-full p-4">
+      <Card className="w-full max-w-2xl">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base">
+              Q{currentIndex + 1}/{questions.length}
+            </CardTitle>
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Score: {score}/{currentIndex}</span>
+              <span className="text-muted-foreground">Understanding: {overallMastery}%</span>
+              <Dialog open={showProgress} onOpenChange={setShowProgress}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 px-2">
+                    <BarChart3 className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Progress & Understanding</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Overall Understanding</span>
+                        <span className="font-medium">{overallMastery}%</span>
+                      </div>
+                      <Progress value={overallMastery} className="h-2" />
+                    </div>
+                    <div className="space-y-3">
+                      {Object.entries(masteryBySkill).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Answer questions to see skill breakdown.</p>
+                      ) : (
+                        Object.entries(masteryBySkill).map(([tag, skill]) => {
+                          const pct = Math.round((skill.correct / Math.max(skill.total, 1)) * 100);
+                          return (
+                            <div key={tag} className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                {getSkillIcon(skill)}
+                                <span className="flex-1 capitalize">{tag.replace(/_/g, " ")}</span>
+                                <span className="text-muted-foreground">{skill.correct}/{skill.total}</span>
+                              </div>
+                              <Progress value={pct} className="h-1.5" />
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
-          <Dialog open={showProgress} onOpenChange={setShowProgress}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5" data-testid="button-show-progress">
-                <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline text-xs">{overallMastery}%</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Progress & Understanding</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Overall Understanding</span>
-                    <span className="font-medium">{overallMastery}%</span>
-                  </div>
-                  <Progress value={overallMastery} className="h-2" />
-                </div>
-                <div className="space-y-3">
-                  {Object.entries(masteryBySkill).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Answer questions to see skill breakdown.</p>
-                  ) : (
-                    Object.entries(masteryBySkill).map(([tag, skill]) => {
-                      const pct = Math.round((skill.correct / Math.max(skill.total, 1)) * 100);
-                      return (
-                        <div key={tag} className="space-y-1">
-                          <div className="flex items-center gap-2 text-sm">
-                            {getSkillIcon(skill)}
-                            <span className="flex-1 capitalize">{tag.replace(/_/g, " ")}</span>
-                            <span className="text-muted-foreground">{skill.correct}/{skill.total}</span>
-                          </div>
-                          <Progress value={pct} className="h-1.5" />
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-      
-      <div className="flex-1 overflow-auto p-4">
-        <Card className="max-w-2xl mx-auto">
-          <CardContent className="pt-6 space-y-4">
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="flex items-start justify-between gap-2">
             <p className="text-base font-medium flex-1">{currentQuestion.question}</p>
             <ReportDialog
@@ -860,17 +796,16 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                 <Button variant="outline" onClick={handleIdk}>
                   <HelpCircle className="mr-1 h-4 w-4" /> I don't know
                 </Button>
-                <Button onClick={handleCheckAnswer} data-testid="button-check-answer">Check Answer</Button>
+                <Button onClick={handleCheckAnswer}>Check Answer</Button>
               </>
             ) : (
-              <Button onClick={handleNext} data-testid="button-next-question">
+              <Button onClick={handleNext}>
                 {currentIndex < questions.length - 1 ? "Next Question" : "Finish Quiz"}
               </Button>
             )}
           </div>
-          </CardContent>
-        </Card>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

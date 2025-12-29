@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { CollectionsList } from "./CollectionsList";
 import { StudyModes } from "./StudyModes";
 import { StudyMode, DocumentTypeHint } from "@/pages/Study";
-import { X } from "lucide-react";
+import { X, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import lightpathLogo from "@/assets/lightpath-logo.png";
 
 interface Collection {
   id: string;
@@ -78,6 +77,7 @@ export const Sidebar = ({
   useEffect(() => {
     fetchCollections();
 
+    // Subscribe to changes
     const channel = supabase
       .channel("collections-changes")
       .on(
@@ -96,6 +96,7 @@ export const Sidebar = ({
 
   return (
     <>
+      {/* Mobile overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
@@ -103,30 +104,27 @@ export const Sidebar = ({
         />
       )}
 
+      {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 h-screen w-[240px] bg-sidebar border-r flex flex-col z-50 transition-transform duration-200 overflow-hidden",
+          "fixed lg:sticky top-0 left-0 h-screen w-[220px] bg-card border-r flex flex-col z-50 transition-transform duration-200 overflow-x-hidden",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="h-12 px-3 border-b flex items-center justify-between shrink-0 bg-sidebar">
-          <div className="flex items-center gap-2">
-            <img src={lightpathLogo} alt="" className="w-5 h-5 rounded" />
-            <span className="font-semibold text-sm">Study Workspace</span>
-          </div>
+        <div className="px-2 py-2 border-b flex items-center justify-between">
+          <h2 className="font-semibold text-sm">Study Workspace</h2>
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden h-7 w-7"
+            className="lg:hidden h-6 w-6"
             onClick={() => setIsOpen(false)}
-            data-testid="button-close-sidebar"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3 w-3" />
           </Button>
         </div>
 
-        <ScrollArea className="flex-1">
-          <div className="p-3 space-y-4">
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="px-2 py-2 space-y-3">
             <CollectionsList
               collections={collections}
               selectedCollection={selectedCollection}
@@ -135,21 +133,21 @@ export const Sidebar = ({
               loading={loading}
             />
 
-            <Separator className="my-3" />
+            <Separator />
 
             <StudyModes mode={mode} setMode={setMode} />
 
-            <Separator className="my-3" />
+            <Separator />
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
-                Material Type
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">
+                What are these materials?
               </label>
               <Select
                 value={documentTypeHint}
                 onValueChange={(value) => setDocumentTypeHint(value as DocumentTypeHint)}
               >
-                <SelectTrigger className="w-full h-8 text-xs" data-testid="select-document-type">
+                <SelectTrigger className="w-full h-8 text-xs">
                   <SelectValue placeholder="Select type..." />
                 </SelectTrigger>
                 <SelectContent>
