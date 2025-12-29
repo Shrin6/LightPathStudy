@@ -61,6 +61,15 @@ The application supports multiple study modes:
 - **Flashcard viewer**: Smaller cards (max-w-xl), refined button layout
 - **Data-testid attributes**: Comprehensive coverage for testing
 
+### Navigation Components (Dec 2025)
+- **Breadcrumbs**: Reusable breadcrumb component showing context (Home > Dashboard > Collection > Mode)
+  - Location: `src/components/navigation/Breadcrumbs.tsx`
+- **BackButton**: Context-aware back button with fallback navigation
+  - Location: `src/components/navigation/BackButton.tsx`
+- **Study TopBar**: Updated with breadcrumbs and back button, shows collection name and current mode
+- **PublicShell Footer**: Added navigation links (Home, Dashboard, Study, Settings)
+- **AppShell Header**: Added breadcrumbs support for Dashboard and Settings pages
+
 ### Page Builder Feature
 A secondary feature for generating website homepage previews with:
 - **Industry Presets**: Restaurant, Plumbing, Lawyers, Health - each with unique themes and layouts

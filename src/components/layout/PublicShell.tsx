@@ -59,12 +59,44 @@ export function PublicShell({ children }: PublicShellProps) {
       </main>
       
       <footer className="py-6 px-4 border-t border-border bg-muted/30">
-        <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span>Lightpath Study</span>
+        <div className="container mx-auto flex flex-col gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span>Lightpath Study</span>
+            </div>
+            <nav className="flex items-center gap-4" data-testid="footer-nav">
+              <button
+                onClick={() => navigate("/")}
+                className="hover:text-foreground transition-colors"
+                data-testid="footer-link-home"
+              >
+                Home
+              </button>
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="hover:text-foreground transition-colors"
+                data-testid="footer-link-dashboard"
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => navigate("/study")}
+                className="hover:text-foreground transition-colors"
+                data-testid="footer-link-study"
+              >
+                Study
+              </button>
+              <button
+                onClick={() => navigate("/settings")}
+                className="hover:text-foreground transition-colors"
+                data-testid="footer-link-settings"
+              >
+                Settings
+              </button>
+            </nav>
           </div>
-          <p>Your patient, personal AI study companion.</p>
+          <p className="text-center sm:text-left">Your patient, personal AI study companion.</p>
         </div>
       </footer>
     </div>

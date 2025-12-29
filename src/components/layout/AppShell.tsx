@@ -3,12 +3,16 @@ import { Sparkles, Home, BookOpen, LayoutDashboard, Settings, LogOut, Menu, X } 
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Breadcrumbs, BreadcrumbItem } from "@/components/navigation/Breadcrumbs";
+import { BackButton } from "@/components/navigation/BackButton";
 
 interface AppShellProps {
   children: React.ReactNode;
   onSignOut?: () => void;
   userEmail?: string;
   rightHeaderContent?: React.ReactNode;
+  breadcrumbs?: BreadcrumbItem[];
+  showBackButton?: boolean;
 }
 
 const navItems = [
@@ -17,12 +21,31 @@ const navItems = [
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
-export function AppShell({ children, onSignOut, userEmail, rightHeaderContent }: AppShellProps) {
+export function AppShell({ 
+  children, 
+  onSignOut, 
+  userEmail, 
+  rightHeaderContent,
+  breadcrumbs,
+  showBackButton = false
+}: AppShellProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const currentPath = location.pathname;
+  
+  const getPageLabel = () => {
+    switch (currentPath) {
+      case "/dashboard": return "Dashboard";
+      case "/settings": return "Settings";
+      default: return "Dashboard";
+    }
+  };
+
+  const defaultBreadcrumbs: BreadcrumbItem[] = breadcrumbs || [
+    { label: getPageLabel() },
+  ];
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -114,16 +137,23 @@ export function AppShell({ children, onSignOut, userEmail, rightHeaderContent }:
             >
               <Menu className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="gap-2"
-              onClick={() => navigate("/")}
-              data-testid="button-home"
-            >
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline">Home</span>
-            </Button>
+            {showBackButton ? (
+              <BackButton fallbackPath="/dashboard" />
+            ) : (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="gap-2"
+                onClick={() => navigate("/")}
+                data-testid="button-home"
+              >
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline">Home</span>
+              </Button>
+            )}
+            <div className="hidden sm:block border-l pl-3 ml-1">
+              <Breadcrumbs items={defaultBreadcrumbs} />
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
