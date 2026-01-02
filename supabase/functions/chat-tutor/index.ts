@@ -787,6 +787,7 @@ ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, 
           .rpc('match_document_chunks', {
             query_embedding: embeddingVector,
             match_collection_id: collectionId,
+            match_user_id: user.id,
             match_count: 10,
           });
         
