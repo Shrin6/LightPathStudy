@@ -9,6 +9,10 @@ import Auth from "./pages/Auth";
 import Study from "./pages/Study";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
+import FeatureTutor from "./pages/FeatureTutor";
+import FeatureQuizzes from "./pages/FeatureQuizzes";
+import FeatureFlashcards from "./pages/FeatureFlashcards";
+import FeatureMemory from "./pages/FeatureMemory";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +28,10 @@ const App = () => (
           <Route path="/study" element={<Study />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/features/tutor" element={<FeatureTutor />} />
+          <Route path="/features/quizzes" element={<FeatureQuizzes />} />
+          <Route path="/features/flashcards" element={<FeatureFlashcards />} />
+          <Route path="/features/memory" element={<FeatureMemory />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

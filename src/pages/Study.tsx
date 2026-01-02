@@ -10,6 +10,7 @@ import { NotesViewer } from "@/components/study/NotesViewer";
 import { TopBar } from "@/components/study/TopBar";
 import { Session } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
+import { MemoryExperience } from "@/components/memory/MemoryExperience";
 
 export type StudyMode = "explain" | "quiz" | "flashcards" | "worksheet" | "memory" | "notes";
 export type DocumentTypeHint = "NOTES_OR_STUDY_GUIDE" | "QUIZ_OR_TEST" | "WORKSHEET_OR_PROBLEM_SET" | "SLIDES_OR_IMAGES" | "MIXED_OR_UNSURE";
@@ -119,6 +120,8 @@ const Study = () => {
           return <WorksheetPanel collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
         case "notes":
           return <NotesViewer collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
+        case "memory":
+          return <MemoryExperience collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
         default:
           return <ChatPane mode={mode} collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
       }

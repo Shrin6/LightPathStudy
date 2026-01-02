@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Send, Loader2, Flag } from "lucide-react";
+import { Send, Loader2, Flag, Volume2, StopCircle } from "lucide-react";
 import { StudyMode, DocumentTypeHint } from "@/pages/Study";
 import { ProofButtons } from "./ProofButtons";
 import { ReportDialog, ReportPayload } from "./ReportDialog";
@@ -32,6 +32,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
   const [loading, setLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -316,6 +317,29 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
     return titles[mode];
   };
 
+  const isSpeechSupported = typeof window !== "undefined" && "speechSynthesis" in window;
+
+  const speakText = (text: string, id: string) => {
+    if (!isSpeechSupported || !text.trim()) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onend = () => setSpeakingId((prev) => (prev === id ? null : prev));
+      utterance.onerror = () => setSpeakingId((prev) => (prev === id ? null : prev));
+      setSpeakingId(id);
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error("Speech synthesis failed", err);
+      setSpeakingId(null);
+    }
+  };
+
+  const stopSpeaking = () => {
+    if (!isSpeechSupported) return;
+    window.speechSynthesis.cancel();
+    setSpeakingId(null);
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="border-b px-4 py-3 bg-card/50">
@@ -374,6 +398,27 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
                   </div>
                   {msg.role === "assistant" && !isTyping && (
                     <div className="flex items-center gap-1.5 mt-1.5">
+                      {mode === "explain" && isSpeechSupported && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground h-6 px-2"
+                          onClick={() => speakText(msg.content, msg.id || `assistant-${idx}`)}
+                          disabled={speakingId === (msg.id || `assistant-${idx}`)}
+                        >
+                          <Volume2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {mode === "explain" && isSpeechSupported && speakingId && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground h-6 px-2"
+                          onClick={stopSpeaking}
+                        >
+                          <StopCircle className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       <ProofButtons
                         onGotIt={() => handleProofSignal("GOT_IT", idx)}
                         onNotSure={() => handleProofSignal("NOT_SURE", idx)}

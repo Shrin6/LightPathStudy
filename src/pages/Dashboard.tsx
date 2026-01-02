@@ -100,11 +100,15 @@ const Dashboard = () => {
   const [progress, setProgress] = useState<CollectionProgress>({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
   const [likedQuotes, setLikedQuotes] = useState<string[]>([]);
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
+  const [showAlpha, setShowAlpha] = useState<boolean>(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("alphaBannerDismissed") : null;
+    return stored !== "true";
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        navigate("/");
+        navigate("/auth");
       } else {
         setSession(session);
         loadCollections(session.user.id);
@@ -114,7 +118,7 @@ const Dashboard = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
-        navigate("/");
+        navigate("/auth");
       } else {
         setSession(session);
       }
@@ -275,6 +279,24 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {showAlpha && (
+        <div className="bg-amber-100 border-b border-amber-200 px-4 py-3 text-amber-900 flex items-start justify-between gap-3">
+          <div>
+            <p className="font-medium">Alpha testing</p>
+            <p className="text-sm">You’re in alpha testing. Expect bugs while we try things out—this isn’t the full build yet.</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setShowAlpha(false);
+              localStorage.setItem("alphaBannerDismissed", "true");
+            }}
+          >
+            Dismiss
+          </Button>
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-50 h-14 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 flex items-center justify-between px-4">
         <div className="flex items-center gap-4">

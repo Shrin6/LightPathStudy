@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import lightpathLogo from "@/assets/lightpath-logo.png";
+import { ArrowLeft } from "lucide-react";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -65,10 +66,23 @@ const Auth = () => {
     }
   };
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/");
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-secondary/5 p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-secondary/5 p-4 transition-opacity duration-200">
+      <Card className="w-full max-w-md shadow-lg transition-transform duration-200 hover:-translate-y-0.5">
         <CardHeader className="text-center">
+          <div className="flex justify-start mb-2">
+            <Button variant="ghost" size="sm" className="gap-1" onClick={handleBack}>
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
+          </div>
           <div className="flex justify-center mb-4">
             <img src={lightpathLogo} alt="Lightpath Study" className="w-16 h-16 rounded-lg" />
           </div>
