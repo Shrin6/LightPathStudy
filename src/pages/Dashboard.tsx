@@ -17,8 +17,10 @@ import {
   FolderOpen,
   ArrowRight,
   Settings,
-  Sparkles
+  Sparkles,
+  Info
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 import { AppBreadcrumbs } from "@/components/ui/app-breadcrumbs";
@@ -281,9 +283,29 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       {showAlpha && (
         <div className="bg-amber-100 border-b border-amber-200 px-4 py-3 text-amber-900 flex items-start justify-between gap-3">
-          <div>
+          <div className="flex items-center gap-2">
             <p className="font-medium">Alpha testing</p>
-            <p className="text-sm">You’re in alpha testing. Expect bugs while we try things out—this isn’t the full build yet.</p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-amber-700 hover:text-amber-900 hover:bg-amber-200">
+                  <Info className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 text-sm" align="start">
+                <div className="space-y-2">
+                  <p className="font-medium">What does alpha testing mean?</p>
+                  <p className="text-muted-foreground">
+                    This is alpha testing for the core functions. Features may change and bugs are expected as we refine the experience.
+                  </p>
+                  <p className="text-muted-foreground">
+                    If you encounter any problems, please use the <strong>Feedback</strong> button in the header to report them.
+                  </p>
+                  <p className="text-muted-foreground">
+                    You can also use the Feedback button to recommend new features you'd like to see!
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           <Button
             variant="ghost"
