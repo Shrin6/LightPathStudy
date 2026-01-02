@@ -17,9 +17,10 @@ const Index = () => {
             <span className="font-semibold text-lg">Lightpath Study</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
-              Dashboard
+            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+              Home
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>Dashboard</Button>
             <Button size="sm" onClick={() => navigate("/auth")}>
               Sign In
             </Button>
@@ -75,7 +76,7 @@ const Index = () => {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border">
+            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/tutor")}>
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
                 <Brain className="w-5 h-5 text-primary" />
               </div>
@@ -85,7 +86,7 @@ const Index = () => {
               </p>
             </Card>
 
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border">
+            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/quizzes")}>
               <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center mb-3">
                 <GraduationCap className="w-5 h-5 text-success" />
               </div>
@@ -95,7 +96,7 @@ const Index = () => {
               </p>
             </Card>
 
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border">
+            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/flashcards")}>
               <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center mb-3">
                 <BookOpen className="w-5 h-5 text-info" />
               </div>
@@ -105,7 +106,7 @@ const Index = () => {
               </p>
             </Card>
 
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border">
+            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/memory")}>
               <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center mb-3">
                 <Lightbulb className="w-5 h-5 text-warning" />
               </div>
@@ -187,6 +188,15 @@ const Index = () => {
             <Upload className="w-4 h-4" />
             Get Started Free
           </Button>
+        </div>
+      </section>
+
+      <section className="py-12 px-4">
+        <div className="container mx-auto max-w-3xl space-y-3 text-center">
+          <h3 className="text-xl font-semibold">Why we built Lightpath</h3>
+          <p className="text-muted-foreground text-sm">
+            We believe AI is a helpful tool, not something to idolize. Use it to support your learning, keep your own judgment, and stay grounded in your values.
+          </p>
         </div>
       </section>
 

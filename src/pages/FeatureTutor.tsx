@@ -1,0 +1,63 @@
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ArrowLeft, Play } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+const FeatureTutor = () => {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 sticky top-0 z-40">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1">
+              <ArrowLeft className="h-4 w-4" /> Back
+            </Button>
+            <span className="font-semibold text-lg">AI Tutor</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>Home</Button>
+            <Button size="sm" onClick={() => navigate("/dashboard")}>Dashboard</Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-10 max-w-4xl space-y-8">
+        <div className="space-y-3">
+          <h1 className="text-3xl font-bold tracking-tight">AI Tutor</h1>
+          <p className="text-muted-foreground text-lg">
+            Step-by-step explanations in plain language. Ask it to slow down, simplify, or give more examples at any time.
+          </p>
+        </div>
+
+        <Card className="p-4 bg-card/70 border shadow-sm">
+          <div className="aspect-video rounded-lg border bg-muted/40 flex items-center justify-center text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm"><Play className="h-4 w-4" /> Demo video placeholder</div>
+          </div>
+        </Card>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <Card className="p-4 space-y-2">
+            <h3 className="font-semibold">What it does</h3>
+            <p className="text-sm text-muted-foreground">
+              Explains your uploaded materials, highlights key steps, and answers follow-up questions. It stays grounded in your collection.
+            </p>
+          </Card>
+          <Card className="p-4 space-y-2">
+            <h3 className="font-semibold">How to use it</h3>
+            <p className="text-sm text-muted-foreground">
+              Select a collection, open Study → Tutor, and ask a question. Use “Make it simpler” or “Give an example” to refine the response.
+            </p>
+          </Card>
+        </div>
+
+        <div className="flex gap-3">
+          <Button onClick={() => navigate("/auth")}>Sign in to try</Button>
+          <Button variant="outline" onClick={() => navigate("/study")}>Open Study workspace</Button>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default FeatureTutor;
