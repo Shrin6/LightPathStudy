@@ -21,6 +21,7 @@ import {
   Info
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
 import { AppBreadcrumbs } from "@/components/ui/app-breadcrumbs";
@@ -104,6 +105,10 @@ const Dashboard = () => {
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
   const [showAlpha, setShowAlpha] = useState<boolean>(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("alphaBannerDismissed") : null;
+    return stored !== "true";
+  });
+  const [showAlphaDialog, setShowAlphaDialog] = useState<boolean>(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("alphaDialogSeen") : null;
     return stored !== "true";
   });
 
@@ -319,6 +324,43 @@ const Dashboard = () => {
           </Button>
         </div>
       )}
+
+      {/* Alpha Testing Welcome Dialog */}
+      <Dialog open={showAlphaDialog} onOpenChange={(open) => {
+        setShowAlphaDialog(open);
+        if (!open) localStorage.setItem("alphaDialogSeen", "true");
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-amber-600" />
+              Welcome to Alpha Testing
+            </DialogTitle>
+            <DialogDescription className="text-left space-y-3 pt-2">
+              <p>
+                You're using the alpha version of Lightpath Study. This means you're testing the <strong>core functions</strong> before the full release.
+              </p>
+              <p>
+                Features may change and bugs are expected as we refine the experience.
+              </p>
+              <p>
+                <strong>If you encounter any problems</strong>, please use the <strong>Feedback</strong> button in the header to report them.
+              </p>
+              <p>
+                You can also use the Feedback button to <strong>recommend new features</strong> you'd like to see!
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => {
+              setShowAlphaDialog(false);
+              localStorage.setItem("alphaDialogSeen", "true");
+            }}>
+              Got it!
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Header */}
       <header className="sticky top-0 z-50 h-14 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
