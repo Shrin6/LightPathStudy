@@ -15,9 +15,6 @@ import { MemoryExperience } from "@/components/memory/MemoryExperience";
 export type StudyMode = "explain" | "quiz" | "flashcards" | "worksheet" | "memory" | "notes";
 export type DocumentTypeHint = "NOTES_OR_STUDY_GUIDE" | "QUIZ_OR_TEST" | "WORKSHEET_OR_PROBLEM_SET" | "SLIDES_OR_IMAGES" | "MIXED_OR_UNSURE";
 
-// DEV_MODE: Set to true to bypass auth for testing
-const DEV_MODE = true;
-
 const modeLabels: Record<StudyMode, string> = {
   explain: "Tutor",
   quiz: "Quiz",
@@ -39,17 +36,34 @@ const Study = () => {
   const [documentTypeHint, setDocumentTypeHint] = useState<DocumentTypeHint>("MIXED_OR_UNSURE");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session && !DEV_MODE) {
+    const checkAuthAndActivation = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
         navigate("/auth");
-      } else {
-        setSession(session);
+        return;
       }
+
+      // Check if alpha key is activated
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("alpha_activated")
+        .eq("user_id", session.user.id)
+        .single();
+
+      if (!profile?.alpha_activated) {
+        navigate("/alpha-key");
+        return;
+      }
+
+      setSession(session);
       setLoading(false);
-    });
+    };
+
+    checkAuthAndActivation();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session && !DEV_MODE) {
+      if (!session) {
         navigate("/auth");
       } else {
         setSession(session);
@@ -105,7 +119,7 @@ const Study = () => {
     );
   }
 
-  if (!session && !DEV_MODE) {
+  if (!session) {
     return null;
   }
 

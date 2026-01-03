@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      alpha_keys: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          status: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
+      }
       collections: {
         Row: {
           created_at: string | null
@@ -227,6 +254,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          alpha_activated: boolean
           avatar_url: string | null
           created_at: string | null
           display_name: string | null
@@ -235,6 +263,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          alpha_activated?: boolean
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
@@ -243,6 +272,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          alpha_activated?: boolean
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
@@ -342,6 +372,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_alpha_key: { Args: { submitted_key: string }; Returns: Json }
       match_document_chunks: {
         Args: {
           match_collection_id: string
