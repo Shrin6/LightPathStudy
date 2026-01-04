@@ -173,17 +173,18 @@ const Settings = () => {
   }, []);
 
   const loadData = async (userId: string) => {
-    // Load subscription end date
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('subscription_end')
-      .eq('user_id', userId)
-      .single();
-    
-    if (profile?.subscription_end) {
-      setSubscriptionEndDate(profile.subscription_end);
-    }
     try {
+      // Load subscription end date
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_end')
+        .eq('user_id', userId)
+        .single();
+      
+      if (profile?.subscription_end) {
+        setSubscriptionEndDate(profile.subscription_end);
+      }
+
       // Load collections
       const { data: collectionsData } = await supabase
         .from("collections")
@@ -311,9 +312,8 @@ const Settings = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="h-14 border-b bg-card flex items-center gap-4 px-4">
-        <Button variant="ghost" size="sm" onClick={()5">
-            <TabsTrigger value="preferences">Preferences</TabsTrigger>
-            <TabsTrigger value="subscription">Subscription
+        <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
         <h1 className="text-lg font-semibold">Settings</h1>
@@ -322,8 +322,9 @@ const Settings = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 max-w-4xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="preferences">Preferences</TabsTrigger>
+            <TabsTrigger value="subscription">Subscription</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="saved">Saved</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
