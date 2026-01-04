@@ -24,9 +24,10 @@ interface ChatPaneProps {
   collectionId: string | null;
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
+  onUsageCheck?: () => Promise<boolean>;
 }
 
-export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHint }: ChatPaneProps) => {
+export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHint, onUsageCheck }: ChatPaneProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -164,6 +165,11 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
       return;
     }
 
+    // Check usage limit
+    if (onUsageCheck) {
+      const allowed = await onUsageCheck();
+      if (!allowed) return;
+    }
     const { data: { session } } = await supabase.auth.getSession();
     const accessToken = session?.access_token;
 

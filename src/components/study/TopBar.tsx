@@ -6,6 +6,7 @@ import { LogOut, Menu, LayoutDashboard } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 import { AppBreadcrumbs, BreadcrumbItem } from "@/components/ui/app-breadcrumbs";
 import lightpathLogo from "@/assets/lightpath-logo.png";
+import { UsageBadge } from "@/components/subscription/UsageBadge";
 
 interface TopBarProps {
   session: Session | null;
@@ -13,9 +14,15 @@ interface TopBarProps {
   setSidebarOpen: (open: boolean) => void;
   collectionName?: string;
   modeName?: string;
+  subscription?: {
+    subscribed: boolean;
+    questionsRemaining: number | null;
+    openCheckout: () => void;
+    openCustomerPortal: () => void;
+  };
 }
 
-export const TopBar = ({ session, sidebarOpen, setSidebarOpen, collectionName, modeName }: TopBarProps) => {
+export const TopBar = ({ session, sidebarOpen, setSidebarOpen, collectionName, modeName, subscription }: TopBarProps) => {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -60,6 +67,14 @@ export const TopBar = ({ session, sidebarOpen, setSidebarOpen, collectionName, m
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        {subscription && (
+          <UsageBadge
+            subscribed={subscription.subscribed}
+            questionsRemaining={subscription.questionsRemaining}
+            onClick={subscription.subscribed ? subscription.openCustomerPortal : subscription.openCheckout}
+          />
+        )}
+        
         <Button
           variant="outline"
           size="sm"
