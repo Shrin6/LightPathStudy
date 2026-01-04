@@ -70,6 +70,12 @@ export function useProfileAutoFix() {
           console.log('[AUTO-FIX] Fixed subscribed field');
         }
 
+        // Remove legacy alpha_activated field (set to true since we removed alpha system)
+        if (profile.alpha_activated !== true) {
+          needsUpdate.alpha_activated = true;
+          console.log('[AUTO-FIX] Cleaned up legacy alpha_activated field');
+        }
+
         // If subscribed but no end date, set it to 1 month from now
         if (profile.subscribed && !profile.subscription_end) {
           const endDate = new Date();
