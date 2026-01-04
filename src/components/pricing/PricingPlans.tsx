@@ -13,7 +13,7 @@ export const PricingPlans = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { openCheckout } = useSubscription();
+  const { openCheckout, openPortal, subscribed, loading } = useSubscription();
 
   const handleNotifyMe = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,9 +111,19 @@ export const PricingPlans = () => {
           </ul>
         </CardContent>
         <CardFooter>
-          <Button className="w-full" onClick={openCheckout}>
-            Upgrade to Pro
-          </Button>
+          {loading ? (
+            <Button className="w-full" disabled>
+              Loading...
+            </Button>
+          ) : subscribed ? (
+            <Button className="w-full" variant="outline" onClick={openPortal}>
+              Manage Subscription
+            </Button>
+          ) : (
+            <Button className="w-full" onClick={openCheckout}>
+              Upgrade to Pro
+            </Button>
+          )}
         </CardFooter>
       </Card>
 

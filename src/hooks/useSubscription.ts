@@ -81,13 +81,56 @@ export function useSubscription() {
 
   const openCheckout = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke("create-checkout");
-      if (error) throw error;
+      console.log("Opening checkout...");
+      
+      // Check if user is authenticated first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert("Please sign in first to upgrade to Pro");
+        return;
+      }
+      
+      console.log("Session found, calling function...");
+      
+      const response = await supabase.functions.invoke("create-checkout", {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      console.log("Full response:", response);
+      
+      if (response.error) {
+        console.error("Checkout error details:", response.error);
+        console.error("Error message:", response.error.message);
+        console.error("Error context:", response.error.context);
+        alert(`Checkout failed: ${response.error.message || 'Unknown error'}. Check Supabase Edge Function logs for details.`);
+        return;
+      }
+      
+      const { data, error } = response;
+      
+      if (error) {
+        console.error("Response error:", error);
+        throw error;
+      }
+      
+      if (data?.error) {
+        console.error("Server error:", data.error);
+        alert(`Server error: ${data.error}`);
+        return;
+      }
+      
       if (data?.url) {
-        window.open(data.url, "_blank");
+        console.log("Redirecting to:", data.url);
+        window.location.href = data.url;
+      } else {
+        console.error("No checkout URL received:", data);
+        alert("No checkout URL received. Check Supabase logs.");
       }
     } catch (error) {
       console.error("Error creating checkout:", error);
+      alert("Unable to open checkout. Please check console and Supabase logs.");
     }
   }, []);
 

@@ -103,14 +103,6 @@ const Dashboard = () => {
   const [progress, setProgress] = useState<CollectionProgress>({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
   const [likedQuotes, setLikedQuotes] = useState<string[]>([]);
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
-  const [showAlpha, setShowAlpha] = useState<boolean>(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("alphaBannerDismissed") : null;
-    return stored !== "true";
-  });
-  const [showAlphaDialog, setShowAlphaDialog] = useState<boolean>(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("alphaDialogSeen") : null;
-    return stored !== "true";
-  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -286,81 +278,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {showAlpha && (
-        <div className="bg-amber-100 border-b border-amber-200 px-4 py-3 text-amber-900 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <p className="font-medium">Alpha testing</p>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-5 w-5 text-amber-700 hover:text-amber-900 hover:bg-amber-200">
-                  <Info className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 text-sm" align="start">
-                <div className="space-y-2">
-                  <p className="font-medium">What does alpha testing mean?</p>
-                  <p className="text-muted-foreground">
-                    This is alpha testing for the core functions. Features may change and bugs are expected as we refine the experience.
-                  </p>
-                  <p className="text-muted-foreground">
-                    If you encounter any problems, please use the <strong>Feedback</strong> button in the header to report them.
-                  </p>
-                  <p className="text-muted-foreground">
-                    You can also use the Feedback button to recommend new features you'd like to see!
-                  </p>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setShowAlpha(false);
-              localStorage.setItem("alphaBannerDismissed", "true");
-            }}
-          >
-            Dismiss
-          </Button>
-        </div>
-      )}
-
-      {/* Alpha Testing Welcome Dialog */}
-      <Dialog open={showAlphaDialog} onOpenChange={(open) => {
-        setShowAlphaDialog(open);
-        if (!open) localStorage.setItem("alphaDialogSeen", "true");
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Info className="h-5 w-5 text-amber-600" />
-              Welcome to Alpha Testing
-            </DialogTitle>
-            <DialogDescription className="text-left space-y-3 pt-2">
-              <p>
-                You're using the alpha version of Lightpath Study. This means you're testing the <strong>core functions</strong> before the full release.
-              </p>
-              <p>
-                Features may change and bugs are expected as we refine the experience.
-              </p>
-              <p>
-                <strong>If you encounter any problems</strong>, please use the <strong>Feedback</strong> button in the header to report them.
-              </p>
-              <p>
-                You can also use the Feedback button to <strong>recommend new features</strong> you'd like to see!
-              </p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => {
-              setShowAlphaDialog(false);
-              localStorage.setItem("alphaDialogSeen", "true");
-            }}>
-              Got it!
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       {/* Header */}
       <header className="sticky top-0 z-50 h-14 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 flex items-center justify-between px-4">
         <div className="flex items-center gap-4">

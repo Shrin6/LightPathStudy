@@ -46,7 +46,10 @@ const Study = () => {
   useEffect(() => {
     if (searchParams.get("checkout") === "success") {
       toast.success("Subscription activated! You now have unlimited access.");
-      subscription.checkSubscription();
+      // Wait a moment for Stripe to process, then check subscription
+      setTimeout(() => {
+        subscription.checkSubscription();
+      }, 2000);
     }
   }, [searchParams]);
 
@@ -56,18 +59,6 @@ const Study = () => {
       
       if (!session) {
         navigate("/auth");
-        return;
-      }
-
-      // Check if alpha key is activated
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("alpha_activated")
-        .eq("user_id", session.user.id)
-        .single();
-
-      if (!profile?.alpha_activated) {
-        navigate("/alpha-key");
         return;
       }
 
