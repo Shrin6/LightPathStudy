@@ -22,7 +22,6 @@ import {
   Sparkles,
   Flame,
   MessageSquare,
-}
   Info
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

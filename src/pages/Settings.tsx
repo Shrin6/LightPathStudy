@@ -171,6 +171,8 @@ const Settings = () => {
       setSavedTricks(JSON.parse(storedTricks));
     }
   }, []);
+
+  const loadData = async (userId: string) => {
     // Load subscription end date
     const { data: profile } = await supabase
       .from('profiles')
@@ -181,8 +183,6 @@ const Settings = () => {
     if (profile?.subscription_end) {
       setSubscriptionEndDate(profile.subscription_end);
     }
-
-  const loadData = async (userId: string) => {
     try {
       // Load collections
       const { data: collectionsData } = await supabase
