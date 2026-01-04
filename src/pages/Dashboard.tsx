@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
+import { useSubscription } from "@/hooks/useSubscription";
 import { 
   BookOpen, 
   Brain, 
@@ -18,6 +20,9 @@ import {
   ArrowRight,
   Settings,
   Sparkles,
+  Flame,
+  MessageSquare,
+}
   Info
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -96,6 +101,7 @@ interface CollectionProgress {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const subscription = useSubscription();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -103,6 +109,10 @@ const Dashboard = () => {
   const [progress, setProgress] = useState<CollectionProgress>({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
   const [likedQuotes, setLikedQuotes] = useState<string[]>([]);
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
+  const [studyStreak, setStudyStreak] = useState(0);
+  const [totalStudyTime, setTotalStudyTime] = useState(0);
+  const [studyStreak, setStudyStreak] = useState(0);
+  const [totalStudyTime, setTotalStudyTime] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -154,8 +164,62 @@ const Dashboard = () => {
         setSelectedCollectionId(toSelect);
         loadCollectionProgress(userId, toSelect);
       }
+      
+      // Load study stats
+      loadStudyStats(userId);
     } catch (error) {
       console.error("Error loading collections:", error);
+    }
+  };
+
+  const loadStudyStats = async (userId: string) => {
+    try {
+      // Calculate study streak
+      const { data: allSessions } = await supabase
+        .from("study_sessions")
+        .select("created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (allSessions && allSessions.length > 0) {
+        let streak = 0;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let checkDate = new Date(today);
+
+        const sessionDates = new Set(
+          allSessions.map(s => {
+            const date = new Date(s.created_at);
+            date.setHours(0, 0, 0, 0);
+            return date.getTime();
+          })
+        );
+
+        // Check if studied today or yesterday to start streak
+        const todayTime = today.getTime();
+        const yesterdayTime = todayTime - 86400000;
+        
+        if (sessionDates.has(todayTime)) {
+          streak = 1;
+          checkDate = new Date(yesterdayTime);
+        } else if (sessionDates.has(yesterdayTime)) {
+          streak = 1;
+          checkDate = new Date(yesterdayTime - 86400000);
+        }
+
+        // Count consecutive days backwards
+        while (sessionDates.has(checkDate.getTime())) {
+          streak++;
+          checkDate = new Date(checkDate.getTime() - 86400000);
+        }
+
+        setStudyStreak(streak);
+
+        // Estimate total study time (5 minutes per session as baseline)
+        setTotalStudyTime(allSessions.length * 5);
+      }
+    } catch (error) {
+      console.error("Error loading study stats:", error);
     }
   };
 
@@ -289,6 +353,16 @@ const Dashboard = () => {
         </div>
         <div className="flex items-center gap-2">
           <FeedbackDialog userId={session.user.id} />
+          {subscription.subscribed ? (
+            <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 hidden sm:flex">
+              <Sparkles className="h-3 w-3 mr-1" />
+              Pro
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="hidden sm:flex">
+              Free
+            </Badge>
+          )}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/settings")}>
             <Settings className="h-4 w-4" />
           </Button>
@@ -307,6 +381,53 @@ const Dashboard = () => {
         <div className="grid lg:grid-cols-3 gap-5">
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-5">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-orange-500/10 rounded-lg">
+                      <Flame className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{studyStreak}</div>
+                      <div className="text-xs text-muted-foreground">Day Streak</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/10 rounded-lg">
+                      <Clock className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{totalStudyTime}</div>
+                      <div className="text-xs text-muted-foreground">Minutes</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-500/10 rounded-lg">
+                      <MessageSquare className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">
+                        {subscription.questionsRemaining === null ? "∞" : subscription.questionsUsed}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Questions</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Collection Progress */}
             <Card>
               <CardHeader className="pb-3">
