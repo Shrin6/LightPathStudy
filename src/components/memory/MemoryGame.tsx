@@ -62,6 +62,7 @@ interface MemoryGameProps {
   collectionId: string | null;
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
+  onUsageCheck?: () => Promise<boolean>;
 }
 
 function stripJson(raw: string): MemoryPack | null {
@@ -125,7 +126,7 @@ const randomExamples = [
   },
 ];
 
-export const MemoryGame = ({ collectionId, collectionContent, documentTypeHint }: MemoryGameProps) => {
+export const MemoryGame = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: MemoryGameProps) => {
   const [topic, setTopic] = useState("");
   const [contentType, setContentType] = useState<string>("Mixed/Not sure");
   const [styles, setStyles] = useState<string[]>(["Acronym", "Mnemonic phrase"]);
@@ -228,6 +229,11 @@ export const MemoryGame = ({ collectionId, collectionContent, documentTypeHint }
       return;
     }
 
+    // Check usage limit
+    if (onUsageCheck) {
+      const allowed = await onUsageCheck();
+      if (!allowed) return;
+    }
     const diff = overrideDifficulty || difficulty;
     if (overrideDifficulty) setDifficulty(overrideDifficulty);
 

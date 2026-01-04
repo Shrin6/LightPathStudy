@@ -14,6 +14,7 @@ interface FlashcardsViewerProps {
   collectionId: string | null;
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
+  onUsageCheck?: () => Promise<boolean>;
 }
 
 interface Flashcard {
@@ -22,7 +23,7 @@ interface Flashcard {
   back: string;
 }
 
-export const FlashcardsViewer = ({ collectionId, collectionContent, documentTypeHint }: FlashcardsViewerProps) => {
+export const FlashcardsViewer = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: FlashcardsViewerProps) => {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -67,6 +68,11 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
       return;
     }
 
+    // Check usage limit
+    if (onUsageCheck) {
+      const allowed = await onUsageCheck();
+      if (!allowed) return;
+    }
     // RELEVANCE CHECK: Validate content is academic
     const validation = validateCollectionContent(collectionContent);
     if (!validation.isValid) {

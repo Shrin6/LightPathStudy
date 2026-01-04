@@ -8,9 +8,10 @@ interface MemoryExperienceProps {
   collectionId: string | null;
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
+  onUsageCheck?: () => Promise<boolean>;
 }
 
-export const MemoryExperience = ({ collectionId, collectionContent, documentTypeHint }: MemoryExperienceProps) => {
+export const MemoryExperience = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: MemoryExperienceProps) => {
   const [tab, setTab] = useState<"game" | "classic">("game");
 
   return (
@@ -32,6 +33,7 @@ export const MemoryExperience = ({ collectionId, collectionContent, documentType
           collectionId={collectionId}
           collectionContent={collectionContent}
           documentTypeHint={documentTypeHint}
+          onUsageCheck={onUsageCheck}
         />
       </TabsContent>
 
@@ -41,6 +43,7 @@ export const MemoryExperience = ({ collectionId, collectionContent, documentType
           collectionId={collectionId}
           collectionContent={collectionContent}
           documentTypeHint={documentTypeHint}
+          onUsageCheck={onUsageCheck}
         />
       </TabsContent>
     </Tabs>

@@ -21,6 +21,7 @@ interface WorksheetPanelProps {
   collectionId: string | null;
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
+  onUsageCheck?: () => Promise<boolean>;
 }
 
 interface WorksheetQuestion {
@@ -136,7 +137,7 @@ function sanitizeWorksheetResponse(raw: string): WorksheetResponse | null {
   }
 }
 
-export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHint }: WorksheetPanelProps) => {
+export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: WorksheetPanelProps) => {
   const [worksheetMode, setWorksheetMode] = useState<WorksheetMode>('onsite');
   const [topicFocus, setTopicFocus] = useState('');
   const [worksheet, setWorksheet] = useState<WorksheetResponse | null>(null);
@@ -173,6 +174,11 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
       return;
     }
 
+    // Check usage limit
+    if (onUsageCheck) {
+      const allowed = await onUsageCheck();
+      if (!allowed) return;
+    }
     setIsGenerating(true);
     setWorksheet(null);
     setCurrentQuestionIndex(0);

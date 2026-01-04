@@ -259,6 +259,10 @@ export type Database = {
           created_at: string | null
           display_name: string | null
           id: string
+          questions_used: number
+          stripe_customer_id: string | null
+          subscribed: boolean
+          subscription_end: string | null
           updated_at: string | null
           user_id: string
         }
@@ -268,6 +272,10 @@ export type Database = {
           created_at?: string | null
           display_name?: string | null
           id: string
+          questions_used?: number
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -277,6 +285,10 @@ export type Database = {
           created_at?: string | null
           display_name?: string | null
           id?: string
+          questions_used?: number
+          stripe_customer_id?: string | null
+          subscribed?: boolean
+          subscription_end?: string | null
           updated_at?: string | null
           user_id?: string
         }

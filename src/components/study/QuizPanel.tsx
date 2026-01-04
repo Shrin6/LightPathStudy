@@ -20,6 +20,7 @@ interface QuizPanelProps {
   collectionId: string | null;
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
+  onUsageCheck?: () => Promise<boolean>;
 }
 
 interface QuizQuestion {
@@ -136,7 +137,7 @@ const sanitizeQuizJSON = (text: string): QuizQuestion[] | null => {
   }
 };
 
-export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }: QuizPanelProps) => {
+export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: QuizPanelProps) => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -190,6 +191,11 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint }:
       return;
     }
 
+    // Check usage limit
+    if (onUsageCheck) {
+      const allowed = await onUsageCheck();
+      if (!allowed) return;
+    }
     setIsGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();

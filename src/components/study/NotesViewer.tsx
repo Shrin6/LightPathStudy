@@ -18,9 +18,10 @@ interface NotesViewerProps {
   collectionId: string | null;
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
+  onUsageCheck?: () => Promise<boolean>;
 }
 
-export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint }: NotesViewerProps) => {
+export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: NotesViewerProps) => {
   const [notes, setNotes] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -88,6 +89,11 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint 
       return;
     }
 
+    // Check usage limit
+    if (onUsageCheck) {
+      const allowed = await onUsageCheck();
+      if (!allowed) return;
+    }
     setIsGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();

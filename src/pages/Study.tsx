@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Sidebar } from "@/components/study/Sidebar";
 import { ChatPane } from "@/components/study/ChatPane";
@@ -11,6 +11,9 @@ import { TopBar } from "@/components/study/TopBar";
 import { Session } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { MemoryExperience } from "@/components/memory/MemoryExperience";
+import { useSubscription } from "@/hooks/useSubscription";
+import { PaywallDialog } from "@/components/subscription/PaywallDialog";
+import { toast } from "sonner";
 
 export type StudyMode = "explain" | "quiz" | "flashcards" | "worksheet" | "memory" | "notes";
 export type DocumentTypeHint = "NOTES_OR_STUDY_GUIDE" | "QUIZ_OR_TEST" | "WORKSHEET_OR_PROBLEM_SET" | "SLIDES_OR_IMAGES" | "MIXED_OR_UNSURE";
@@ -26,6 +29,7 @@ const modeLabels: Record<StudyMode, string> = {
 
 const Study = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<StudyMode>("explain");
@@ -34,6 +38,17 @@ const Study = () => {
   const [collectionName, setCollectionName] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [documentTypeHint, setDocumentTypeHint] = useState<DocumentTypeHint>("MIXED_OR_UNSURE");
+  const [showPaywall, setShowPaywall] = useState(false);
+  
+  const subscription = useSubscription();
+
+  // Handle checkout success
+  useEffect(() => {
+    if (searchParams.get("checkout") === "success") {
+      toast.success("Subscription activated! You now have unlimited access.");
+      subscription.checkSubscription();
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const checkAuthAndActivation = async () => {
@@ -123,21 +138,32 @@ const Study = () => {
     return null;
   }
 
+  const handleUsageCheck = async (): Promise<boolean> => {
+    if (subscription.subscribed) return true;
+    
+    const allowed = await subscription.incrementUsage();
+    if (!allowed) {
+      setShowPaywall(true);
+      return false;
+    }
+    return true;
+  };
+
   const renderMainContent = () => {
     const content = (() => {
       switch (mode) {
         case "flashcards":
-          return <FlashcardsViewer collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
+          return <FlashcardsViewer collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
         case "quiz":
-          return <QuizPanel collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
+          return <QuizPanel collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
         case "worksheet":
-          return <WorksheetPanel collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
+          return <WorksheetPanel collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
         case "notes":
-          return <NotesViewer collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
+          return <NotesViewer collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
         case "memory":
-          return <MemoryExperience collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
+          return <MemoryExperience collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
         default:
-          return <ChatPane mode={mode} collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} />;
+          return <ChatPane mode={mode} collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
       }
     })();
 
@@ -158,6 +184,7 @@ const Study = () => {
         setSidebarOpen={setSidebarOpen}
         collectionName={collectionName}
         modeName={modeLabels[mode]}
+        subscription={subscription}
       />
       
       <div className="flex flex-1 overflow-hidden">
@@ -176,6 +203,16 @@ const Study = () => {
           {renderMainContent()}
         </main>
       </div>
+
+      <PaywallDialog
+        open={showPaywall}
+        onOpenChange={setShowPaywall}
+        onSubscribe={() => {
+          setShowPaywall(false);
+          subscription.openCheckout();
+        }}
+        questionsUsed={subscription.questionsUsed}
+      />
     </div>
   );
 };
