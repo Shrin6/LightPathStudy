@@ -464,6 +464,8 @@ RULES:
 - memory_hook: One short memorable phrase, acronym, or tip to help remember this concept (max 15 words)
 - skill_tag: snake_case topic tag reflecting the concept tested (e.g., rna_processing, limiting_reactant, mole_ratio, transcription)
 - Base questions on the provided study materials
+- If there are weak areas identified in the learning profile, prioritize creating questions that reinforce those concepts
+- If there are strong areas, you can include some advanced questions on those topics
 - DO NOT include any text before [ or after ]
 `,
   flashcards: `
@@ -480,6 +482,8 @@ RULES:
 - Front = question, term, or concept name
 - Back = concise answer, definition, or explanation (1-2 sentences max)
 - ALL content must come from the provided study materials
+- If there are weak areas identified in the learning profile, prioritize creating flashcards that reinforce those concepts
+- If there are strong areas, you can include some advanced cards on those topics
 - If you cannot create a meaningful card from the notes, SKIP it entirely
 - Do NOT write "Not enough information" - just omit that card
 - No markdown, no code fences, no explanation text - ONLY the JSON array
@@ -548,6 +552,8 @@ RULES:
 - explanation: 1-3 sentences explaining why (required)
 - source_ref: optional short quote from the notes
 - If topic_focus provided, prioritize that topic
+- If there are weak areas identified in the learning profile, prioritize creating questions that reinforce those concepts
+- If there are strong areas, you can include some advanced questions on those topics
 - Base questions on the provided study materials
 - DO NOT include any text before { or after }
 `,
@@ -697,9 +703,9 @@ serve(async (req) => {
 
         for (const event of learningEvents) {
           const concept = event.concept || (event.payload as any)?.question?.substring(0, 50) || 'unknown';
-          if (event.event_type === 'QUIZ_WRONG' || event.event_type === 'PROOF_NOT_SURE') {
+          if (event.event_type === 'QUIZ_WRONG' || event.event_type === 'PROOF_NOT_SURE' || event.event_type === 'WORKSHEET_WRONG' || event.event_type === 'WORKSHEET_IDK') {
             if (!weakAreas.includes(concept)) weakAreas.push(concept);
-          } else if (event.event_type === 'QUIZ_RIGHT' || event.event_type === 'PROOF_GOT_IT') {
+          } else if (event.event_type === 'QUIZ_RIGHT' || event.event_type === 'PROOF_GOT_IT' || event.event_type === 'WORKSHEET_CORRECT') {
             if (!strongAreas.includes(concept)) strongAreas.push(concept);
           }
         }
@@ -710,7 +716,7 @@ LEARNING PROFILE (from recent study sessions):
 - Weak areas (needs practice): ${weakAreas.length > 0 ? weakAreas.slice(0, 3).join(', ') : 'None identified'}
 - Strong areas: ${strongAreas.length > 0 ? strongAreas.slice(0, 3).join(', ') : 'None identified'}
 
-ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, or flashcards, start your response by asking ONE short follow-up question targeting their top weak area to reinforce learning. Be encouraging and supportive.
+ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, flashcards, or worksheet, start your response by asking ONE short follow-up question targeting their top weak area to reinforce learning. Be encouraging and supportive.
 `;
           console.log('chat-tutor: Learning profile generated with', weakAreas.length, 'weak areas,', strongAreas.length, 'strong areas');
         }

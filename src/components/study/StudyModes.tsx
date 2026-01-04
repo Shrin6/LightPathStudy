@@ -30,9 +30,9 @@ export const StudyModes = ({ mode, setMode }: StudyModesProps) => {
               key={m.id}
               variant={isActive ? "default" : "ghost"}
               className={cn(
-                "h-auto py-2 px-2 flex flex-col items-center gap-1 text-xs",
-                isActive && "bg-primary text-primary-foreground",
-                !isActive && "hover:bg-muted"
+                "h-auto py-3 px-3 flex flex-col items-center gap-1.5 text-xs rounded-xl shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105",
+                isActive && "bg-primary text-primary-foreground shadow-lg scale-105",
+                !isActive && "hover:bg-muted hover:text-foreground"
               )}
               onClick={() => setMode(m.id)}
             >

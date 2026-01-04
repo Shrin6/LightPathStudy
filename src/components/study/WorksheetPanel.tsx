@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { exportWorksheetToPdf } from '@/lib/exportUtils';
 import { DocumentTypeHint } from "@/pages/Study";
 import { ReportDialog, ReportPayload } from "./ReportDialog";
+import { insertLearningEvent } from "@/lib/learningEvents";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
 
@@ -346,6 +347,19 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     updateMastery(currentQuestion.type, correct ? "correct" : "wrong");
     setGeneratedMemoryTrick("");
     setShowMemoryTrick(!correct);
+
+    // Insert learning event
+    insertLearningEvent(
+      collectionId,
+      correct ? "WORKSHEET_CORRECT" : "WORKSHEET_WRONG",
+      currentQuestion.prompt.substring(0, 100),
+      {
+        question: currentQuestion.prompt,
+        correctAnswer: currentQuestion.answer,
+        selectedAnswer: userAnswer,
+        explanation: currentQuestion.explanation,
+      }
+    );
   };
 
   const handleIdk = () => {
@@ -356,6 +370,18 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     updateMastery(currentQuestion.type, "idk");
     setShowMemoryTrick(true);
     setGeneratedMemoryTrick("");
+
+    // Insert learning event
+    insertLearningEvent(
+      collectionId,
+      "WORKSHEET_IDK",
+      currentQuestion.prompt.substring(0, 100),
+      {
+        question: currentQuestion.prompt,
+        correctAnswer: currentQuestion.answer,
+        explanation: currentQuestion.explanation,
+      }
+    );
   };
 
   const isAnswerCorrect = (question: WorksheetQuestion, userAnswer?: string): boolean => {

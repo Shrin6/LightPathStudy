@@ -6,6 +6,9 @@ export type LearningEventType =
   | "PROOF_GOT_IT" 
   | "PROOF_NOT_SURE" 
   | "PROOF_CHECK_ME"
+  | "WORKSHEET_CORRECT"
+  | "WORKSHEET_WRONG"
+  | "WORKSHEET_IDK"
   | "REPORT";
 
 export interface LearningEventPayload {
