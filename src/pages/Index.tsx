@@ -3,9 +3,19 @@ import { Card } from "@/components/ui/card";
 import { BookOpen, Brain, FileText, Lightbulb, Upload, GraduationCap, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import lightpathLogo from "@/assets/lightpath-logo.png";
+import { PricingPlans } from "@/components/pricing/PricingPlans";
 
 const Index = () => {
   const navigate = useNavigate();
+
+  const handleDashboardClick = () => {
+    // 1% chance to play easter egg audio
+    if (Math.random() < 0.01) {
+      const audio = new Audio("/public/easter-egg.mp3");
+      audio.play().catch(err => console.log("Audio play failed:", err));
+    }
+    navigate("/dashboard");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -20,7 +30,7 @@ const Index = () => {
             <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
               Home
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>Dashboard</Button>
+            <Button variant="ghost" size="sm" onClick={handleDashboardClick}>Dashboard</Button>
             <Button size="sm" onClick={() => navigate("/auth")}>
               Sign In
             </Button>
@@ -36,42 +46,118 @@ const Index = () => {
           </div>
           
           <h1 className="text-3xl md:text-5xl font-bold text-foreground leading-tight">
-            Study smarter from your own materials
+            Stop using AI to get answers.<br />Start using it to actually learn.
           </h1>
           
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Upload notes, slides, worksheets, and images. Get tutor help, quizzes, flashcards, and clean notes—all based on YOUR content.
+            ChatGPT gets your homework done. But when exam day comes? You're stuck. Lightpath forces you to <span className="font-semibold text-foreground">think, recall, and understand</span>—so the knowledge actually sticks.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
             <Button 
               size="lg" 
               className="gap-2"
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/auth")}
             >
-              Go to Dashboard
+              Start Actually Learning
               <ArrowRight className="h-4 w-4" />
             </Button>
             <Button 
               size="lg" 
               variant="outline"
-              onClick={() => navigate("/auth")}
+              onClick={handleDashboardClick}
             >
-              Try a Sample
+              See How It Works
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="py-16 px-4 bg-muted/30">
+      {/* The Problem Section */}
+      <section className="py-16 px-4 bg-muted/50">
         <div className="container mx-auto max-w-5xl">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-              Everything you need to master any subject
+              The AI shortcut is making you worse at learning
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              You copy-paste questions into ChatGPT, get perfect answers, and feel like you understand. But your brain never did the work.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <Card className="p-6 border-2 border-destructive/20 bg-destructive/5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-destructive/20 flex items-center justify-center shrink-0">
+                  <span className="text-xl">❌</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground mb-1">Passive AI Use</h3>
+                  <p className="text-sm text-muted-foreground">Get instant answers → Feel smart → Forget everything by test day</p>
+                </div>
+              </div>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">•</span>
+                  <span>Zero cognitive effort = zero retention</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">•</span>
+                  <span>Answers you can't explain in your own words</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">•</span>
+                  <span>Dependent on AI for every single problem</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive mt-0.5">•</span>
+                  <span>Panic when you face a test without ChatGPT</span>
+                </li>
+              </ul>
+            </Card>
+
+            <Card className="p-6 border-2 border-success/20 bg-success/5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center shrink-0">
+                  <span className="text-xl">✓</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground mb-1">Active Learning with Lightpath</h3>
+                  <p className="text-sm text-muted-foreground">Struggle productively → Build understanding → Ace tests confidently</p>
+                </div>
+              </div>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-success mt-0.5">•</span>
+                  <span>Forces retrieval practice = better memory</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-success mt-0.5">•</span>
+                  <span>Guides you to think, not just copy answers</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-success mt-0.5">•</span>
+                  <span>Makes you explain concepts = deeper understanding</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-success mt-0.5">•</span>
+                  <span>Walk into exams knowing you actually learned it</span>
+                </li>
+              </ul>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section className="py-16 px-4">
+        <div className="container mx-auto max-w-5xl">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+              How Lightpath makes you actually learn
             </h2>
             <p className="text-muted-foreground">
-              Light works exclusively from your uploaded materials—no random facts, just your course content.
+              Every feature is designed to force active thinking—not passive consumption. All from YOUR uploaded materials.
             </p>
           </div>
 
@@ -82,7 +168,7 @@ const Index = () => {
               </div>
               <h3 className="font-semibold text-foreground mb-1">AI Tutor</h3>
               <p className="text-sm text-muted-foreground">
-                Step-by-step explanations in simple language. Ask to slow down anytime.
+                Asks YOU questions to check understanding. No spoon-feeding—you build the explanation.
               </p>
             </Card>
 
@@ -92,7 +178,7 @@ const Index = () => {
               </div>
               <h3 className="font-semibold text-foreground mb-1">Practice Quizzes</h3>
               <p className="text-sm text-muted-foreground">
-                One question at a time with clear explanations for each answer.
+                Retrieval practice = stronger memory. Answer before seeing explanations.
               </p>
             </Card>
 
@@ -102,7 +188,7 @@ const Index = () => {
               </div>
               <h3 className="font-semibold text-foreground mb-1">Smart Flashcards</h3>
               <p className="text-sm text-muted-foreground">
-                Auto-generate flashcards with terms, definitions, and examples.
+                Spaced repetition keeps you reviewing. Forces you to recall, not just recognize.
               </p>
             </Card>
 
@@ -112,7 +198,7 @@ const Index = () => {
               </div>
               <h3 className="font-semibold text-foreground mb-1">Memory Tricks</h3>
               <p className="text-sm text-muted-foreground">
-                Get mnemonics and silly phrases to remember complex concepts.
+                Elaborative encoding with mnemonics. Makes concepts sticky and memorable.
               </p>
             </Card>
           </div>
@@ -120,14 +206,14 @@ const Index = () => {
       </section>
 
       {/* How It Works */}
-      <section className="py-16 px-4">
+      <section className="py-16 px-4 bg-muted/30">
         <div className="container mx-auto max-w-3xl">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-              Simple, patient, effective
+              From your notes to deep understanding
             </h2>
             <p className="text-muted-foreground">
-              Three steps to start learning better
+              Three steps to stop cramming and start mastering
             </p>
           </div>
 
@@ -139,7 +225,7 @@ const Index = () => {
               <div>
                 <h3 className="font-semibold text-foreground mb-1">Upload Your Materials</h3>
                 <p className="text-muted-foreground">
-                  Drop in lecture slides, textbook PDFs, or handwritten notes. Light reads and organizes everything.
+                  Lecture slides, textbook chapters, class notes—Lightpath analyzes YOUR content, not generic Wikipedia summaries.
                 </p>
               </div>
             </div>
@@ -149,9 +235,9 @@ const Index = () => {
                 2
               </div>
               <div>
-                <h3 className="font-semibold text-foreground mb-1">Ask Questions or Generate Content</h3>
+                <h3 className="font-semibold text-foreground mb-1">Engage Actively</h3>
                 <p className="text-muted-foreground">
-                  Chat with your AI tutor, create flashcards, take quizzes, or build practice worksheets.
+                  Quiz yourself, chat with the tutor, make flashcards. Every tool forces you to retrieve and apply knowledge.
                 </p>
               </div>
             </div>
@@ -161,9 +247,9 @@ const Index = () => {
                 3
               </div>
               <div>
-                <h3 className="font-semibold text-foreground mb-1">Learn at Your Own Pace</h3>
+                <h3 className="font-semibold text-foreground mb-1">Build Real Understanding</h3>
                 <p className="text-muted-foreground">
-                  Go slow when you need to, repeat concepts, get corrections. Light never rushes you.
+                  Not just memorization—you'll explain concepts in your own words and apply them to new problems.
                 </p>
               </div>
             </div>
@@ -171,14 +257,73 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Why Lightpath Works */}
+      <section className="py-16 px-4">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+              Why this actually works (backed by science)
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card className="p-6 bg-card border">
+              <div className="text-3xl mb-3">🧠</div>
+              <h3 className="font-semibold text-foreground mb-2">Retrieval Practice</h3>
+              <p className="text-sm text-muted-foreground">
+                The act of recalling information makes it stick better than re-reading. Quizzing yourself = stronger memory.
+              </p>
+            </Card>
+
+            <Card className="p-6 bg-card border">
+              <div className="text-3xl mb-3">🔄</div>
+              <h3 className="font-semibold text-foreground mb-2">Spaced Repetition</h3>
+              <p className="text-sm text-muted-foreground">
+                Reviewing material at increasing intervals prevents forgetting. Flashcards aren't just review—they're memory training.
+              </p>
+            </Card>
+
+            <Card className="p-6 bg-card border">
+              <div className="text-3xl mb-3">💡</div>
+              <h3 className="font-semibold text-foreground mb-2">Elaborative Encoding</h3>
+              <p className="text-sm text-muted-foreground">
+                Connecting new info to what you know makes it memorable. That's why mnemonics and explanations work.
+              </p>
+            </Card>
+          </div>
+
+          <div className="mt-10 p-6 bg-primary/5 border-l-4 border-primary rounded-lg">
+            <p className="text-foreground font-medium mb-2">
+              💬 "I used to copy ChatGPT answers and feel smart. Then I'd bomb tests. Lightpath forced me to actually think through problems—my grades went from C's to A's."
+            </p>
+            <p className="text-sm text-muted-foreground">— College sophomore using Lightpath for Organic Chemistry</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section className="py-20 px-4">
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+              Simple, Student-Friendly Pricing
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Start free. Upgrade when you're ready to unlock unlimited learning.
+            </p>
+          </div>
+          <PricingPlans />
+        </div>
+      </section>
+
       {/* CTA Section */}
-      <section className="py-16 px-4 bg-muted/30">
+      <section className="py-16 px-4 bg-muted/50">
         <div className="container mx-auto max-w-2xl text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-3">
-            Ready to study smarter?
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+            Stop wasting time. Start learning that lasts.
           </h2>
           <p className="text-muted-foreground mb-6">
-            Join students who are learning better with their own personalized AI tutor.
+            Join students who actually understand their material—not just copy answers. No credit card required.
           </p>
           <Button 
             size="lg"
@@ -186,16 +331,16 @@ const Index = () => {
             onClick={() => navigate("/auth")}
           >
             <Upload className="w-4 h-4" />
-            Get Started Free
+            Start Learning for Free
           </Button>
         </div>
       </section>
 
       <section className="py-12 px-4">
         <div className="container mx-auto max-w-3xl space-y-3 text-center">
-          <h3 className="text-xl font-semibold">Why we built Lightpath</h3>
+          <h3 className="text-xl font-semibold">AI is a tool, not a crutch</h3>
           <p className="text-muted-foreground text-sm">
-            We believe AI is a helpful tool, not something to idolize. Use it to support your learning, keep your own judgment, and stay grounded in your values.
+            We built Lightpath because students deserve AI that helps them learn—not AI that does the learning for them. Use technology wisely. Build real understanding. Keep your own judgment.
           </p>
         </div>
       </section>
@@ -203,7 +348,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-6 px-4 border-t bg-card">
         <div className="container mx-auto text-center text-sm text-muted-foreground">
-          <p>© 2024 Lightpath Study. Your patient, personal study companion.</p>
+          <p>© 2024 Lightpath Study. Learn deeply, think critically, remember permanently.</p>
         </div>
       </footer>
     </div>

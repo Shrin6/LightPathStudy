@@ -22,24 +22,63 @@ const authSchema = z.object({
     .max(72, "Password must be less than 72 characters")
 });
 
+const BIBLE_QUOTES = [
+  {
+    text: "Trust in the Lord with all your heart and lean not on your own understanding.",
+    reference: "Proverbs 3:5"
+  },
+  {
+    text: "I can do all things through Christ who strengthens me.",
+    reference: "Philippians 4:13"
+  },
+  {
+    text: "For I know the plans I have for you, declares the Lord, plans to prosper you and not to harm you, plans to give you hope and a future.",
+    reference: "Jeremiah 29:11"
+  },
+  {
+    text: "The fear of the Lord is the beginning of wisdom, and knowledge of the Holy One is understanding.",
+    reference: "Proverbs 9:10"
+  },
+  {
+    text: "Be strong and courageous. Do not be afraid; do not be discouraged, for the Lord your God will be with you wherever you go.",
+    reference: "Joshua 1:9"
+  },
+  {
+    text: "Let the wise hear and increase in learning, and the one who understands obtain guidance.",
+    reference: "Proverbs 1:5"
+  },
+  {
+    text: "Whatever you do, work heartily, as for the Lord and not for men.",
+    reference: "Colossians 3:23"
+  },
+  {
+    text: "Do not conform to the pattern of this world, but be transformed by the renewing of your mind.",
+    reference: "Romans 12:2"
+  }
+];
+
 const Auth = () => {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dailyQuote] = useState(() => {
+    const randomIndex = Math.floor(Math.random() * BIBLE_QUOTES.length);
+    return BIBLE_QUOTES[randomIndex];
+  });
 
   useEffect(() => {
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/study");
+        navigate("/dashboard");
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        navigate("/study");
+        navigate("/dashboard");
       }
     });
 
@@ -75,7 +114,7 @@ const Auth = () => {
           email: validatedData.email,
           password: validatedData.password,
           options: {
-            emailRedirectTo: `${window.location.origin}/study`,
+            emailRedirectTo: `${window.location.origin}/dashboard`,
           },
         });
 
@@ -99,22 +138,39 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-secondary/5 p-4 transition-opacity duration-200">
-      <Card className="w-full max-w-md shadow-lg transition-transform duration-200 hover:-translate-y-0.5">
-        <CardHeader className="text-center">
-          <div className="flex justify-start mb-2">
-            <Button variant="ghost" size="sm" className="gap-1" onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
-          </div>
-          <div className="flex justify-center mb-4">
-            <img src={lightpathLogo} alt="Lightpath Study" className="w-16 h-16 rounded-lg" />
-          </div>
-          <CardTitle className="text-2xl">Lightpath Study</CardTitle>
-          <CardDescription>
-            {isLogin ? "Sign in to continue learning" : "Create your account to get started"}
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-secondary/5 p-4">
+      <div className="w-full max-w-md space-y-6">
+        {/* Bible Quote Card */}
+        <Card className="bg-primary/5 border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-primary">
+              Daily Inspiration
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm italic mb-2">"{dailyQuote.text}"</p>
+            <p className="text-xs text-muted-foreground text-right">
+              — {dailyQuote.reference}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Auth Card */}
+        <Card className="shadow-lg">
+          <CardHeader className="text-center">
+            <div className="flex justify-start mb-2">
+              <Button variant="ghost" size="sm" className="gap-1" onClick={handleBack}>
+                <ArrowLeft className="h-4 w-4" /> Back
+              </Button>
+            </div>
+            <div className="flex justify-center mb-4">
+              <img src={lightpathLogo} alt="Lightpath Study" className="w-16 h-16 rounded-lg" />
+            </div>
+            <CardTitle className="text-2xl">Lightpath Study</CardTitle>
+            <CardDescription>
+              {isLogin ? "Sign in to continue learning" : "Create your account to get started"}
+            </CardDescription>
+          </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-2">
@@ -156,6 +212,7 @@ const Auth = () => {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
