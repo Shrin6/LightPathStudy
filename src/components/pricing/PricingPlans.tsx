@@ -6,12 +6,14 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useSubscription } from "@/hooks/useSubscription";
 
 export const PricingPlans = () => {
   const [emailForUpdates, setEmailForUpdates] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { openCheckout } = useSubscription();
 
   const handleNotifyMe = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +111,7 @@ export const PricingPlans = () => {
           </ul>
         </CardContent>
         <CardFooter>
-          <Button className="w-full">
+          <Button className="w-full" onClick={openCheckout}>
             Upgrade to Pro
           </Button>
         </CardFooter>
