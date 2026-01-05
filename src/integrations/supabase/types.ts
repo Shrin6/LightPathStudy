@@ -41,6 +41,36 @@ export type Database = {
         }
         Relationships: []
       }
+      api_rate_limits: {
+        Row: {
+          created_at: string | null
+          endpoint: string
+          id: string
+          request_count: number | null
+          updated_at: string | null
+          user_id: string
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          request_count?: number | null
+          updated_at?: string | null
+          user_id: string
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          request_count?: number | null
+          updated_at?: string | null
+          user_id?: string
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       collections: {
         Row: {
           created_at: string | null
@@ -182,26 +212,41 @@ export type Database = {
       flashcards: {
         Row: {
           back: string
+          back_color: string | null
           collection_id: string
           created_at: string | null
           front: string
+          front_color: string | null
           id: string
+          is_custom: boolean | null
+          last_reviewed: string | null
+          mastery_level: number | null
           user_id: string
         }
         Insert: {
           back: string
+          back_color?: string | null
           collection_id: string
           created_at?: string | null
           front: string
+          front_color?: string | null
           id?: string
+          is_custom?: boolean | null
+          last_reviewed?: string | null
+          mastery_level?: number | null
           user_id: string
         }
         Update: {
           back?: string
+          back_color?: string | null
           collection_id?: string
           created_at?: string | null
           front?: string
+          front_color?: string | null
           id?: string
+          is_custom?: boolean | null
+          last_reviewed?: string | null
+          mastery_level?: number | null
           user_id?: string
         }
         Relationships: [
@@ -294,62 +339,61 @@ export type Database = {
         }
         Relationships: []
       }
-      user_memory_tricks: {
+      saved_sessions: {
         Row: {
-          answer: string | null
-          collection_id: string | null
-          concept: string
+          collection_id: string
           created_at: string | null
-          helpful_rating: number | null
+          current_index: number | null
+          duration_seconds: number | null
+          ended_at: string | null
           id: string
-          last_reviewed: string | null
-          memory_trick: string
-          question: string | null
-          style_preference: string | null
-          times_reviewed: number | null
+          is_completed: boolean | null
+          mode: string
+          progress_percentage: number | null
+          session_data: Json
+          started_at: string
+          total_items: number | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
-          answer?: string | null
-          collection_id?: string | null
-          concept: string
+          collection_id: string
           created_at?: string | null
-          helpful_rating?: number | null
+          current_index?: number | null
+          duration_seconds?: number | null
+          ended_at?: string | null
           id?: string
-          last_reviewed?: string | null
-          memory_trick: string
-          question?: string | null
-          style_preference?: string | null
-          times_reviewed?: number | null
+          is_completed?: boolean | null
+          mode: string
+          progress_percentage?: number | null
+          session_data?: Json
+          started_at?: string
+          total_items?: number | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
-          answer?: string | null
-          collection_id?: string | null
-          concept?: string
+          collection_id?: string
           created_at?: string | null
-          helpful_rating?: number | null
+          current_index?: number | null
+          duration_seconds?: number | null
+          ended_at?: string | null
           id?: string
-          last_reviewed?: string | null
-          memory_trick?: string
-          question?: string | null
-          style_preference?: string | null
-          times_reviewed?: number | null
+          is_completed?: boolean | null
+          mode?: string
+          progress_percentage?: number | null
+          session_data?: Json
+          started_at?: string
+          total_items?: number | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "user_memory_tricks_collection_id_fkey"
+            foreignKeyName: "saved_sessions_collection_id_fkey"
             columns: ["collection_id"]
             isOneToOne: false
             referencedRelation: "collections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_memory_tricks_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -359,8 +403,12 @@ export type Database = {
           collection_id: string | null
           conversation_history: Json | null
           created_at: string | null
+          duration_seconds: number | null
+          ended_at: string | null
           id: string
           mode: string
+          started_at: string | null
+          time_spent_minutes: number | null
           updated_at: string | null
           user_id: string
         }
@@ -368,8 +416,12 @@ export type Database = {
           collection_id?: string | null
           conversation_history?: Json | null
           created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
           id?: string
           mode: string
+          started_at?: string | null
+          time_spent_minutes?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -377,8 +429,12 @@ export type Database = {
           collection_id?: string | null
           conversation_history?: Json | null
           created_at?: string | null
+          duration_seconds?: number | null
+          ended_at?: string | null
           id?: string
           mode?: string
+          started_at?: string | null
+          time_spent_minutes?: number | null
           updated_at?: string | null
           user_id?: string
         }
@@ -445,6 +501,19 @@ export type Database = {
     }
     Functions: {
       activate_alpha_key: { Args: { submitted_key: string }; Returns: Json }
+      check_rate_limit: {
+        Args: {
+          p_endpoint: string
+          p_max_requests: number
+          p_user_id: string
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
+      increment_questions_used: {
+        Args: { p_amount?: number; p_user_id: string }
+        Returns: number
+      }
       match_document_chunks: {
         Args: {
           match_collection_id: string

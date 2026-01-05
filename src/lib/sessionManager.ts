@@ -1,14 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
-export interface SavedSessionData {
-  questions?: any[];
-  currentIndex?: number;
-  answers?: Record<number, string>;
-  score?: number;
-  masteryBySkill?: Record<string, any>;
-  worksheetAnswers?: Record<string, any>;
-  flashcardProgress?: Record<string, any>;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SavedSessionData = Record<string, any>;
 
 export interface SaveSessionParams {
   userId: string;
@@ -51,7 +44,7 @@ export async function saveSession(params: SaveSessionParams) {
         total_items: totalItems,
         duration_seconds: durationSeconds,
         is_completed: isCompleted,
-      })
+      } as any)
       .select()
       .single();
 
