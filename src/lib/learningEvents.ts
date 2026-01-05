@@ -9,17 +9,20 @@ export type LearningEventType =
   | "WORKSHEET_CORRECT"
   | "WORKSHEET_WRONG"
   | "WORKSHEET_IDK"
+  | "WORKSHEET_MANUAL_CORRECT"
   | "REPORT";
 
 export interface LearningEventPayload {
   question?: string;
   correctAnswer?: number | string;
   selectedAnswer?: number | string;
+  userAnswer?: string;
   explanation?: string;
   options?: string[];
   lastUserMessage?: string;
   lastTutorAnswer?: string;
   reportReason?: string;
+  note?: string;
 }
 
 export async function insertLearningEvent(

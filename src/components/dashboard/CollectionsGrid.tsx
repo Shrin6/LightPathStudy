@@ -150,16 +150,16 @@ export const CollectionsGrid = ({ selectedCollectionId, onSelect }: CollectionsG
         const progressMap: Record<string, CollectionProgress> = {};
 
         for (const collection of collectionData) {
-          // Fetch study sessions for this collection
+          // Fetch saved sessions for this collection (they have progress tracking)
           const { data: sessions, error: sessionsError } = await supabase
-            .from('study_sessions')
-            .select('mode, score, total_questions, created_at')
+            .from('saved_sessions')
+            .select('mode, progress_percentage, created_at, is_completed')
             .eq('user_id', userData.user.id)
             .eq('collection_id', collection.id)
             .order('created_at', { ascending: false });
 
-          if (sessionsError && sessionsError.message && sessionsError.message.includes('does not exist')) {
-            console.warn('⚠️ Database migration not applied: columns missing. Run: supabase db push');
+          if (sessionsError) {
+            console.warn('Error fetching sessions:', sessionsError);
           }
 
           if (sessionsError || !sessions) {
@@ -182,17 +182,15 @@ export const CollectionsGrid = ({ selectedCollectionId, onSelect }: CollectionsG
           let lastStudied: string | undefined;
 
           sessions.forEach((session) => {
-            if (session.created_at) {
+            if (session.created_at && !lastStudied) {
               lastStudied = session.created_at;
             }
 
-            if (modeProgress[session.mode as keyof typeof modeProgress]) {
-              // Calculate percentage for this session
-              const percentage =
-                session.total_questions && session.total_questions > 0
-                  ? (session.score / session.total_questions) * 100
-                  : 0;
-              modeProgress[session.mode as keyof typeof modeProgress].push(percentage);
+            const mode = session.mode as keyof typeof modeProgress;
+            if (modeProgress[mode]) {
+              // Use progress_percentage directly
+              const percentage = session.progress_percentage || 0;
+              modeProgress[mode].push(percentage);
             }
           });
 

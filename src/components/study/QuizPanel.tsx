@@ -728,7 +728,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
   }
 
   const currentQuestion = questions[currentIndex];
-  const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
+  const isCorrect = parseInt(selectedAnswer) === currentQuestion.correctAnswer;
   const overallMastery = getOverallMastery();
 
   return (
@@ -826,7 +826,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                   {isChecked && idx === currentQuestion.correctAnswer && (
                     <CheckCircle2 className="inline ml-2 h-4 w-4 text-green-600" />
                   )}
-                  {isChecked && idx === selectedAnswer && idx !== currentQuestion.correctAnswer && (
+                  {isChecked && parseInt(selectedAnswer) === idx && idx !== currentQuestion.correctAnswer && (
                     <XCircle className="inline ml-2 h-4 w-4 text-red-600" />
                   )}
                 </Label>
@@ -860,7 +860,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
 
               {(!isCorrect || usedIdk) && (
                 <p className="text-sm text-muted-foreground">
-                  {generateWrongFeedback(selectedAnswer ?? -1, currentQuestion.correctAnswer, currentQuestion.options)}
+                  {generateWrongFeedback(selectedAnswer ? parseInt(selectedAnswer) : -1, currentQuestion.correctAnswer, currentQuestion.options)}
                 </p>
               )}
 
@@ -995,33 +995,12 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
       onOpenChange={setShowSaveDialog}
       mode="quiz"
       collectionName={collectionName}
-      onSave={handleSaveSession}
+      onSave={async () => {
+        // Session is already saved via auto-save mechanism
+        setShowSaveDialog(false);
+      }}
       onSkip={() => {}}
     />
     </>
   );
 };
-
-const handleSaveSession = async (sessionName: string) => {
-  if (!collectionId) return;
-  
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    // Save quiz session
-    await supabase.from('quiz_sessions').insert({
-      user_id: user.id,
-      collection_id: collectionId,
-      session_name: sessionName,
-      questions: questions,
-      current_index: currentIndex,
-      score: score,
-      mastery_by_skill: masteryBySkill,
-    });
-  } catch (error) {
-    console.error("Save session error:", error);
-    throw error;
-  }
-};
-      

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X, Flag, Plus, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X, Flag, Plus, Trash2, Upload, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { validateCollectionContent, filterMeaningfulCards } from "@/lib/relevanceCheck";

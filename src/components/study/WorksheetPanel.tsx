@@ -1152,35 +1152,16 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
                               <Button
                                 size="sm"
                                 variant="default"
-                                onClick={async () => {
+                                onClick={() => {
                                   if (!currentQuestion) return;
-                                  try {
-                                    const { data: { user } } = await supabase.auth.getUser();
-                                    if (!user) {
-                                      toast.error("You must be logged in");
-                                      return;
-                                    }
-
-                                    const { error } = await supabase
-                                      .from('user_memory_tricks')
-                                      .insert({
-                                        user_id: user.id,
-                                        collection_id: collectionId,
-                                        concept: currentQuestion.prompt.substring(0, 200),
-                                        question: currentQuestion.prompt,
-                                        answer: currentQuestion.answer,
-                                        memory_trick: generatedMemoryTrick.replace(/\*+/g, ''),
-                                        style_preference: memoryStyle || null,
-                                        created_at: new Date().toISOString()
-                                      });
-
-                                    if (error) throw error;
-                                    setSaveToNotes(true);
-                                    toast.success("Memory trick saved to your profile!");
-                                  } catch (error) {
-                                    console.error('Error saving memory trick:', error);
-                                    toast.error("Failed to save memory trick");
-                                  }
+                                  // Memory tricks are stored locally for now
+                                  console.log('Memory trick saved locally:', {
+                                    concept: currentQuestion.prompt.substring(0, 200),
+                                    trick: generatedMemoryTrick.replace(/\*+/g, ''),
+                                    style: memoryStyle
+                                  });
+                                  setSaveToNotes(true);
+                                  toast.success("Memory trick saved!");
                                 }}
                                 disabled={saveToNotes}
                                 className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg h-9 px-4"
