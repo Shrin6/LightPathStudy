@@ -7,6 +7,8 @@ import { useEffect } from "react";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import AlphaKeyActivation from "./pages/AlphaKeyActivation";
+import AlphaGuard from "./components/AlphaGuard";
 import Study from "./pages/Study";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -41,9 +43,10 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/study" element={<Study />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/activate" element={<AlphaKeyActivation />} />
+          <Route path="/study" element={<AlphaGuard><Study /></AlphaGuard>} />
+          <Route path="/dashboard" element={<AlphaGuard><Dashboard /></AlphaGuard>} />
+          <Route path="/settings" element={<AlphaGuard><Settings /></AlphaGuard>} />
           <Route path="/features/tutor" element={<FeatureTutor />} />
           <Route path="/features/quizzes" element={<FeatureQuizzes />} />
           <Route path="/features/flashcards" element={<FeatureFlashcards />} />

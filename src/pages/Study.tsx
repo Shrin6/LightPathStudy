@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Sidebar } from "@/components/study/Sidebar";
@@ -37,24 +38,21 @@ const Study = () => {
   const [collectionContent, setCollectionContent] = useState<string>("");
   const [collectionName, setCollectionName] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('sidebarOpen');
+    const saved = localStorage.getItem("sidebarOpen");
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [documentTypeHint, setDocumentTypeHint] = useState<DocumentTypeHint>("MIXED_OR_UNSURE");
   const [showPaywall, setShowPaywall] = useState(false);
-  
+
   const subscription = useSubscription();
 
-  // Persist sidebar state
   useEffect(() => {
-    localStorage.setItem('sidebarOpen', JSON.stringify(sidebarOpen));
+    localStorage.setItem("sidebarOpen", JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
-  // Handle checkout success
   useEffect(() => {
     if (searchParams.get("checkout") === "success") {
       toast.success("Subscription activated! You now have unlimited access.");
-      // Wait a moment for Stripe to process, then check subscription
       setTimeout(() => {
         subscription.checkSubscription();
       }, 2000);
@@ -64,9 +62,22 @@ const Study = () => {
   useEffect(() => {
     const checkAuthAndActivation = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         navigate("/auth");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("alpha_activated")
+        .eq("id", session.user.id)
+        .single();
+
+      if (profileError) {
+        console.error("Error checking activation:", profileError);
+      } else if (!profile?.alpha_activated) {
+        navigate("/activate");
         return;
       }
 
@@ -95,18 +106,16 @@ const Study = () => {
         return;
       }
 
-      // Fetch collection name
       const { data: collectionData } = await supabase
         .from("collections")
         .select("name")
         .eq("id", selectedCollection)
         .single();
-      
+
       if (collectionData) {
         setCollectionName(collectionData.name);
       }
 
-      // Fetch content
       const { data, error } = await supabase
         .from("uploaded_files")
         .select("parsed_content")
@@ -139,7 +148,7 @@ const Study = () => {
 
   const handleUsageCheck = async (): Promise<boolean> => {
     if (subscription.subscribed) return true;
-    
+
     const allowed = await subscription.incrementUsage();
     if (!allowed) {
       setShowPaywall(true);
@@ -152,17 +161,60 @@ const Study = () => {
     const content = (() => {
       switch (mode) {
         case "flashcards":
-          return <FlashcardsViewer collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
+          return (
+            <FlashcardsViewer
+              collectionId={selectedCollection}
+              collectionContent={collectionContent}
+              documentTypeHint={documentTypeHint}
+              onUsageCheck={handleUsageCheck}
+            />
+          );
         case "quiz":
-          return <QuizPanel collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
+          return (
+            <QuizPanel
+              collectionId={selectedCollection}
+              collectionContent={collectionContent}
+              documentTypeHint={documentTypeHint}
+              onUsageCheck={handleUsageCheck}
+            />
+          );
         case "worksheet":
-          return <WorksheetPanel collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
+          return (
+            <WorksheetPanel
+              collectionId={selectedCollection}
+              collectionContent={collectionContent}
+              documentTypeHint={documentTypeHint}
+              onUsageCheck={handleUsageCheck}
+            />
+          );
         case "notes":
-          return <NotesViewer collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
+          return (
+            <NotesViewer
+              collectionId={selectedCollection}
+              collectionContent={collectionContent}
+              documentTypeHint={documentTypeHint}
+              onUsageCheck={handleUsageCheck}
+            />
+          );
         case "memory":
-          return <MemoryExperience collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
+          return (
+            <MemoryExperience
+              collectionId={selectedCollection}
+              collectionContent={collectionContent}
+              documentTypeHint={documentTypeHint}
+              onUsageCheck={handleUsageCheck}
+            />
+          );
         default:
-          return <ChatPane mode={mode} collectionId={selectedCollection} collectionContent={collectionContent} documentTypeHint={documentTypeHint} onUsageCheck={handleUsageCheck} />;
+          return (
+            <ChatPane
+              mode={mode}
+              collectionId={selectedCollection}
+              collectionContent={collectionContent}
+              documentTypeHint={documentTypeHint}
+              onUsageCheck={handleUsageCheck}
+            />
+          );
       }
     })();
 
@@ -177,15 +229,15 @@ const Study = () => {
 
   return (
     <div className="min-h-screen flex flex-col w-full bg-background">
-      <TopBar 
-        session={session} 
-        sidebarOpen={sidebarOpen} 
+      <TopBar
+        session={session}
+        sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         collectionName={collectionName}
         modeName={modeLabels[mode]}
         subscription={subscription}
       />
-      
+
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           mode={mode}

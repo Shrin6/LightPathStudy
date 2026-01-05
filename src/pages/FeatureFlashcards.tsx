@@ -2,9 +2,43 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Play } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const FeatureFlashcards = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate("/auth");
+        return;
+      }
+      
+      // Check if alpha activated
+      supabase
+        .from("profiles")
+        .select("alpha_activated")
+        .eq("id", session.user.id)
+        .single()
+        .then(({ data: profile }) => {
+          if (!profile?.alpha_activated) {
+            navigate("/activate");
+            return;
+          }
+          setLoading(false);
+        });
+    });
+  }, [navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 sticky top-0 z-40">

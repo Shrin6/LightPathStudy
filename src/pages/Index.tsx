@@ -46,11 +46,11 @@ const Index = () => {
           </div>
           
           <h1 className="text-3xl md:text-5xl font-bold text-foreground leading-tight">
-            Stop using AI to get answers.<br />Start using it to actually learn.
+            Stop using AI to get answers.<br />Start using an AI tutor to actually learn.
           </h1>
           
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            ChatGPT gets your homework done. But when exam day comes? You're stuck. Lightpath forces you to <span className="font-semibold text-foreground">think, recall, and understand</span>—so the knowledge actually sticks.
+            ChatGPT gets your homework done. But when exam day comes? You're stuck. Lightpath is an AI study coach that forces you to <span className="font-semibold text-foreground">think, recall, and understand</span>—so the knowledge actually sticks.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
@@ -81,7 +81,7 @@ const Index = () => {
               The AI shortcut is making you worse at learning
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              You copy-paste questions into ChatGPT, get perfect answers, and feel like you understand. But your brain never did the work.
+              You copy-paste questions into ChatGPT, get perfect answers, and feel like you understand. But your brain never did the work. You need an AI tutor that teaches, not one that gives answers.
             </p>
           </div>
 
@@ -157,7 +157,7 @@ const Index = () => {
               How Lightpath makes you actually learn
             </h2>
             <p className="text-muted-foreground">
-              Every feature is designed to force active thinking—not passive consumption. All from YOUR uploaded materials.
+              AI tools designed to force active thinking—not passive consumption. All from YOUR uploaded materials.
             </p>
           </div>
 
@@ -213,7 +213,7 @@ const Index = () => {
               From your notes to deep understanding
             </h2>
             <p className="text-muted-foreground">
-              Three steps to stop cramming and start mastering
+              Three step-by-step stages to stop cramming and start mastering
             </p>
           </div>
 
@@ -320,7 +320,7 @@ const Index = () => {
       <section className="py-16 px-4 bg-muted/50">
         <div className="container mx-auto max-w-2xl text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-            Stop wasting time. Start learning that lasts.
+            Stop wasting time. Start your learning journey.
           </h2>
           <p className="text-muted-foreground mb-6">
             Join students who actually understand their material—not just copy answers. No credit card required.
@@ -333,6 +333,41 @@ const Index = () => {
             <Upload className="w-4 h-4" />
             Start Learning for Free
           </Button>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-16 px-4">
+        <div className="container mx-auto max-w-3xl">
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-8 text-center">
+            Frequently Asked Questions
+          </h2>
+          <div className="space-y-6">
+            <div className="border-b pb-4">
+              <h3 className="font-semibold text-foreground mb-2">What subjects does Lightpath help with?</h3>
+              <p className="text-muted-foreground text-sm">
+                Lightpath works for any subject—math, science, history, languages, and more. Upload your notes and our AI tutor adapts to your material.
+              </p>
+            </div>
+            <div className="border-b pb-4">
+              <h3 className="font-semibold text-foreground mb-2">How is this different from ChatGPT?</h3>
+              <p className="text-muted-foreground text-sm">
+                ChatGPT gives you answers. Lightpath helps you find the answer yourself through guided questions and active recall—the AI-powered approach proven to improve retention.
+              </p>
+            </div>
+            <div className="border-b pb-4">
+              <h3 className="font-semibold text-foreground mb-2">Does it adapt to my learning style?</h3>
+              <p className="text-muted-foreground text-sm">
+                Yes. Whether you learn best through quizzes, flashcards, or conversation, Lightpath offers multiple study modes to match your learning style.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground mb-2">Is it free to try?</h3>
+              <p className="text-muted-foreground text-sm">
+                Absolutely. Start with our free tier—no credit card required. Upgrade when you're ready for unlimited access.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

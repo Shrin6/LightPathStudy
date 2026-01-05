@@ -115,11 +115,31 @@ const Dashboard = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         navigate("/auth");
-      } else {
-        setSession(session);
-        loadCollections(session.user.id);
+        return;
       }
-      setLoading(false);
+      
+      // Check if alpha activated
+      supabase
+        .from("profiles")
+        .select("alpha_activated")
+        .eq("id", session.user.id)
+        .single()
+        .then(({ data: profile, error }) => {
+          if (error) {
+            console.error("Error fetching profile:", error);
+            setLoading(false);
+            return;
+          }
+          
+          if (!profile || profile.alpha_activated !== true) {
+            navigate("/activate");
+            return;
+          }
+          
+          setSession(session);
+          loadCollections(session.user.id);
+          setLoading(false);
+        });
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {

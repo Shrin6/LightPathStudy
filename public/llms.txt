@@ -1,0 +1,21 @@
+# Lightpath Study - AI Tutor for Students
+
+## About
+Lightpath Study is an AI-powered study app that helps students actually learn instead of just getting answers. Unlike ChatGPT which provides instant answers, Lightpath forces active learning through quizzes, flashcards, and guided tutoring.
+
+## Main Features
+- AI Tutor: Asks questions to check understanding, guides students to build their own explanations
+- Practice Quizzes: Retrieval practice for stronger memory
+- Smart Flashcards: Spaced repetition for long-term retention
+- Memory Tricks: Mnemonics and elaborative encoding
+
+## Supported Subjects
+Math, science, history, languages, and any subject where students can upload their own notes.
+
+## How It Works
+1. Upload lecture slides, textbook chapters, or class notes
+2. Engage with AI-powered quizzes, tutor conversations, and flashcards
+3. Build real understanding through active recall and retrieval practice
+
+## Contact
+Website: https://lightpathstudy.com
