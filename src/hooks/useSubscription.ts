@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const FREE_QUESTION_LIMIT = 20;
+const FREE_QUESTION_LIMIT = 100;
 
 interface SubscriptionState {
   subscribed: boolean;

@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const FREE_QUESTION_LIMIT = 20;
+const FREE_QUESTION_LIMIT = 100;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
