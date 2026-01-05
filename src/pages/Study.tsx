@@ -36,11 +36,19 @@ const Study = () => {
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [collectionContent, setCollectionContent] = useState<string>("");
   const [collectionName, setCollectionName] = useState<string>("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('sidebarOpen');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [documentTypeHint, setDocumentTypeHint] = useState<DocumentTypeHint>("MIXED_OR_UNSURE");
   const [showPaywall, setShowPaywall] = useState(false);
   
   const subscription = useSubscription();
+
+  // Persist sidebar state
+  useEffect(() => {
+    localStorage.setItem('sidebarOpen', JSON.stringify(sidebarOpen));
+  }, [sidebarOpen]);
 
   // Handle checkout success
   useEffect(() => {
@@ -168,7 +176,7 @@ const Study = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col w-full bg-muted/30">
+    <div className="min-h-screen flex flex-col w-full bg-background">
       <TopBar 
         session={session} 
         sidebarOpen={sidebarOpen} 
@@ -190,7 +198,7 @@ const Study = () => {
           setDocumentTypeHint={setDocumentTypeHint}
         />
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto transition-all duration-200">
           {renderMainContent()}
         </main>
       </div>

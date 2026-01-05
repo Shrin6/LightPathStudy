@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X, Flag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, Shuffle, Check, X, Flag, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { validateCollectionContent, filterMeaningfulCards } from "@/lib/relevanceCheck";
 import { DocumentTypeHint } from "@/pages/Study";
 import { ReportDialog } from "./ReportDialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const SUPABASE_URL = "https://dsvpodsvrxwgfqnuojcz.supabase.co";
 
@@ -21,6 +23,11 @@ interface Flashcard {
   id?: string;
   front: string;
   back: string;
+  is_custom?: boolean;
+  mastery_level?: number;
+  last_reviewed?: string;
+  front_color?: string;
+  back_color?: string;
 }
 
 export const FlashcardsViewer = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: FlashcardsViewerProps) => {
@@ -31,6 +38,23 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   const [isLoading, setIsLoading] = useState(true);
   const [knownCards, setKnownCards] = useState<Set<number>>(new Set());
   const [unknownCards, setUnknownCards] = useState<Set<number>>(new Set());
+  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [customFront, setCustomFront] = useState("");
+  const [customBack, setCustomBack] = useState("");
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [frontColor, setFrontColor] = useState("#ffffff");
+  const [backColor, setBackColor] = useState("#ffffff");
+
+  const colorOptions = [
+    { name: "White", value: "#ffffff" },
+    { name: "Yellow", value: "#fbbf24" },
+    { name: "Blue", value: "#60a5fa" },
+    { name: "Green", value: "#4ade80" },
+    { name: "Pink", value: "#f472b6" },
+    { name: "Purple", value: "#c084fc" },
+    { name: "Orange", value: "#fb923c" },
+    { name: "Red", value: "#f87171" },
+  ];
 
   useEffect(() => {
     loadFlashcards();
@@ -268,6 +292,8 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
       newSet.delete(currentIndex);
       return newSet;
     });
+    // Update mastery level in database
+    updateMasteryLevel(currentIndex, 100);
     handleNext();
   };
 
@@ -278,7 +304,111 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
       newSet.delete(currentIndex);
       return newSet;
     });
+    // Update mastery level in database
+    updateMasteryLevel(currentIndex, 0);
     handleNext();
+  };
+
+  const updateMasteryLevel = async (cardIndex: number, masteryLevel: number) => {
+    try {
+      const card = flashcards[cardIndex];
+      if (!card.id) return;
+
+      const { error } = await supabase
+        .from('flashcards')
+        .update({
+          mastery_level: masteryLevel,
+          last_reviewed: new Date().toISOString(),
+        })
+        .eq('id', card.id);
+
+      if (error) {
+        console.error('Error updating mastery level:', error);
+      }
+    } catch (error) {
+      console.error('Error updating mastery level:', error);
+    }
+  };
+
+  const addCustomFlashcard = async () => {
+    if (!customFront.trim() || !customBack.trim()) {
+      toast.error('Please fill in both question and answer');
+      return;
+    }
+
+    if (!collectionId) {
+      toast.error('Please select a collection first');
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('flashcards')
+        .insert({
+          front: customFront,
+          back: customBack,
+          collection_id: collectionId,
+          user_id: user.id,
+          is_custom: true,
+        });
+
+      if (error) throw error;
+
+      setCustomFront("");
+      setCustomBack("");
+      setShowAddCustom(false);
+      await loadFlashcards();
+      toast.success('Custom flashcard added!');
+    } catch (error: any) {
+      console.error('Error adding custom flashcard:', error);
+      toast.error(error.message || 'Failed to add custom flashcard');
+    }
+  };
+
+  const deleteFlashcard = async (cardId: string) => {
+    try {
+      const { error } = await supabase
+        .from('flashcards')
+        .delete()
+        .eq('id', cardId);
+
+      if (error) throw error;
+
+      await loadFlashcards();
+      toast.success('Flashcard deleted!');
+    } catch (error: any) {
+      console.error('Error deleting flashcard:', error);
+      toast.error('Failed to delete flashcard');
+    }
+  };
+
+  const updateCardColors = async (cardId: string, frontCol: string, backCol: string) => {
+    try {
+      const { error } = await supabase
+        .from('flashcards')
+        .update({
+          front_color: frontCol,
+          back_color: backCol,
+        })
+        .eq('id', cardId);
+
+      if (error) throw error;
+
+      // Update local state
+      const updatedCards = flashcards.map(card => 
+        card.id === cardId 
+          ? { ...card, front_color: frontCol, back_color: backCol }
+          : card
+      );
+      setFlashcards(updatedCards);
+      toast.success('Card colors updated!');
+    } catch (error: any) {
+      console.error('Error updating card colors:', error);
+      toast.error('Failed to update colors');
+    }
   };
 
   const shuffleCards = () => {
@@ -308,16 +438,28 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
 
   if (!collectionId) {
     return (
-      <div className="flex items-center justify-center h-full p-6">
-        <p className="text-sm text-muted-foreground">Select a collection to view flashcards</p>
+      <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-50 via-white to-blue-50/30 dark:from-slate-900/50 dark:via-transparent dark:to-blue-900/10 p-8">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <StickyNote className="h-10 w-10 text-white" />
+          </div>
+          <h3 className="text-2xl font-bold">Ready to Study?</h3>
+          <p className="text-muted-foreground">Select a collection from the sidebar to view and practice with flashcards</p>
+        </div>
       </div>
     );
   }
 
   if (!collectionContent || collectionContent.length < 300) {
     return (
-      <div className="flex items-center justify-center h-full p-6">
-        <p className="text-sm text-muted-foreground text-center">Not enough content to generate flashcards.<br/>Upload more detailed files.</p>
+      <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-slate-50 via-white to-amber-50/30 dark:from-slate-900/50 dark:via-transparent dark:to-amber-900/10 p-8">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <Upload className="h-10 w-10 text-white" />
+          </div>
+          <h3 className="text-2xl font-bold">Need More Content</h3>
+          <p className="text-muted-foreground">Upload more detailed files to this collection to generate flashcards</p>
+        </div>
       </div>
     );
   }
@@ -347,46 +489,93 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   const currentCard = flashcards[currentIndex];
   const progress = ((knownCards.size + unknownCards.size) / flashcards.length) * 100;
 
-  return (
-    <div className="flex flex-col items-center justify-center h-full p-4 space-y-4">
-      {/* Progress indicator */}
-      <div className="w-full max-w-lg space-y-1.5">
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Card {currentIndex + 1} of {flashcards.length}</span>
-          <span className="flex gap-3">
-            <span className="text-success">✓ {knownCards.size}</span>
-            <span className="text-destructive">✗ {unknownCards.size}</span>
-          </span>
+  if (!currentCard) {
+    return (
+      <div className="flex items-center justify-center h-full p-6">
+        <div className="text-center space-y-3">
+          <p className="text-sm text-muted-foreground">Loading flashcard...</p>
         </div>
-        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-primary transition-all duration-300" 
-            style={{ width: `${progress}%` }} 
-          />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center w-full h-full bg-gradient-to-br from-slate-900/50 via-transparent to-purple-900/20 p-6 overflow-y-auto">
+      {/* Top Stats Bar */}
+      <div className="w-full max-w-7xl mb-8">
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+          <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-4 text-center hover:bg-white/10 transition-colors">
+            <div className="text-xs text-muted-foreground mb-2">Total Cards</div>
+            <div className="text-3xl font-bold text-white">{flashcards.length}</div>
+          </div>
+          <div className="bg-success/10 backdrop-blur border border-success/20 rounded-xl p-4 text-center hover:bg-success/20 transition-colors">
+            <div className="text-xs text-success/80 mb-2">Mastered</div>
+            <div className="text-3xl font-bold text-success">{knownCards.size}</div>
+          </div>
+          <div className="bg-amber-500/10 backdrop-blur border border-amber-500/20 rounded-xl p-4 text-center hover:bg-amber-500/20 transition-colors">
+            <div className="text-xs text-amber-600/80 mb-2">Learning</div>
+            <div className="text-3xl font-bold text-amber-500">{flashcards.length - knownCards.size - unknownCards.size}</div>
+          </div>
+          <div className="bg-destructive/10 backdrop-blur border border-destructive/20 rounded-xl p-4 text-center hover:bg-destructive/20 transition-colors hidden md:block">
+            <div className="text-xs text-destructive/80 mb-2">To Review</div>
+            <div className="text-3xl font-bold text-destructive">{unknownCards.size}</div>
+          </div>
+          <div className="bg-primary/10 backdrop-blur border border-primary/20 rounded-xl p-4 text-center hover:bg-primary/20 transition-colors hidden md:block">
+            <div className="text-xs text-primary/80 mb-2">Progress</div>
+            <div className="text-3xl font-bold text-primary">{Math.round(progress)}%</div>
+          </div>
         </div>
       </div>
 
-      {/* Flashcard with flip animation */}
-      <div 
-        className="w-full max-w-lg h-56 md:h-64 perspective-1000 cursor-pointer"
-        onClick={() => setFlipped(!flipped)}
-      >
+      {/* Main Flashcard Section */}
+      <div className="w-full max-w-7xl mb-8">
+        {/* Card Counter */}
+        <div className="flex justify-between items-center mb-6 px-2">
+          <div>
+            <h2 className="text-2xl font-bold text-white">
+              Card {currentIndex + 1} of {flashcards.length}
+            </h2>
+            {currentCard.is_custom && (
+              <span className="text-sm text-purple-300">✨ Your custom card</span>
+            )}
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-muted-foreground">
+              {currentCard.mastery_level ? `Mastery: ${currentCard.mastery_level}%` : 'Not reviewed yet'}
+            </div>
+            <div className="text-xs text-muted-foreground/70 mt-1">
+              Custom: {flashcards.filter(c => c.is_custom).length}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-8 backdrop-blur">
+          <div 
+            className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 transition-all duration-300 shadow-lg shadow-purple-500/50" 
+            style={{ width: `${progress}%` }} 
+          />
+        </div>
+
+        {/* Large Flashcard */}
         <div 
-          className={`relative w-full h-full transition-transform duration-500 transform-style-preserve-3d ${
-            flipped ? 'rotate-y-180' : ''
-          }`}
-          style={{ 
-            transformStyle: 'preserve-3d',
-            transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
-          }}
+          className="w-full min-h-[500px] md:min-h-[600px] perspective-1000 cursor-pointer mb-8 group"
+          onClick={() => setFlipped(!flipped)}
         >
-          {/* Front face */}
-          <Card 
-            className="absolute inset-0 backface-hidden border"
-            style={{ backfaceVisibility: 'hidden' }}
+          <div 
+            className={`relative w-full h-full transition-transform duration-500 transform-style-preserve-3d`}
+            style={{ 
+              transformStyle: 'preserve-3d',
+              transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+              minHeight: '500px',
+            }}
           >
-            <CardContent className="flex flex-col items-center justify-center h-full p-5">
-              <div className="absolute top-2 right-2">
+            {/* Front face */}
+            <div 
+              className="absolute inset-0 backface-hidden border-0 shadow-2xl hover:shadow-3xl transition-all overflow-hidden group-hover:scale-[1.02] origin-center rounded-2xl flex flex-col items-center justify-center p-8 md:p-16"
+              style={{ backfaceVisibility: 'hidden', background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}
+            >
+              <div className="absolute top-6 right-6 opacity-50 hover:opacity-100 transition-opacity">
                 <ReportDialog
                   feature="flashcards"
                   payload={{
@@ -397,95 +586,265 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
                   }}
                 />
               </div>
-              <div className="text-[10px] font-semibold text-primary mb-3 uppercase tracking-wider">
-                Question
+              <div className="text-sm font-semibold mb-8 uppercase tracking-widest opacity-90 text-white">
+                {currentCard.is_custom ? '✨ Your Card' : 'Question'}
               </div>
-              <p className="text-base md:text-lg text-center font-medium">
+              <p 
+                className="text-4xl md:text-6xl text-center font-bold leading-tight mb-auto break-words max-w-4xl"
+                style={{ color: currentCard.front_color || '#ffffff' }}
+              >
                 {currentCard.front}
               </p>
-              <p className="text-[10px] text-muted-foreground mt-4">
-                Tap to reveal answer
-              </p>
-            </CardContent>
-          </Card>
-          
-          {/* Back face */}
-          <Card 
-            className="absolute inset-0 backface-hidden border-primary/30 bg-primary/5"
-            style={{ 
-              backfaceVisibility: 'hidden',
-              transform: 'rotateY(180deg)'
-            }}
-          >
-            <CardContent className="flex flex-col items-center justify-center h-full p-5">
-              <div className="text-[10px] font-semibold text-primary mb-3 uppercase tracking-wider">
+              <p className="text-sm text-white/80 mt-12">Click to reveal answer</p>
+            </div>
+            
+            {/* Back face */}
+            <div 
+              className="absolute inset-0 backface-hidden border-0 shadow-2xl hover:shadow-3xl transition-all overflow-hidden group-hover:scale-[1.02] origin-center rounded-2xl flex flex-col items-center justify-center p-8 md:p-16"
+              style={{ 
+                backfaceVisibility: 'hidden',
+                transform: 'rotateY(180deg)',
+                background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
+              }}
+            >
+              <div className="text-sm font-semibold mb-8 uppercase tracking-widest opacity-90 text-white">
                 Answer
               </div>
-              <p className="text-base md:text-lg text-center">
+              <p 
+                className="text-3xl md:text-5xl text-center font-bold leading-tight break-words max-w-4xl"
+                style={{ color: currentCard.back_color || '#ffffff' }}
+              >
                 {currentCard.back}
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons - Large */}
+        <div className="flex gap-4 justify-center mb-8">
+          <Button
+            onClick={handleDontKnowIt}
+            className="bg-destructive/90 hover:bg-destructive text-white px-8 py-7 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all font-semibold"
+            size="lg"
+          >
+            <X className="h-5 w-5 mr-2" />
+            Need More Time
+          </Button>
+          <Button
+            onClick={handleKnowIt}
+            className="bg-success/90 hover:bg-success text-white px-8 py-7 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all font-semibold"
+            size="lg"
+          >
+            <Check className="h-5 w-5 mr-2" />
+            Mastered
+          </Button>
         </div>
       </div>
 
-      {/* Know it / Don't know it buttons */}
-      <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          onClick={handleDontKnowIt}
-          className="border-destructive/50 text-destructive hover:bg-destructive/10"
-          size="sm"
-        >
-          <X className="h-4 w-4 mr-1.5" />
-          Don't Know
-        </Button>
-        <Button
-          variant="outline"
-          onClick={handleKnowIt}
-          className="border-success/50 text-success hover:bg-success/10"
-          size="sm"
-        >
-          <Check className="h-4 w-4 mr-1.5" />
-          Know It
-        </Button>
+      {/* Navigation Controls Section */}
+      <div className="w-full max-w-7xl">
+        {/* Primary Controls */}
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
+          <Button
+            variant="outline"
+            onClick={handlePrevious}
+            disabled={currentIndex === 0}
+            size="lg"
+            className="gap-2 font-semibold hover:bg-white/10"
+          >
+            <ChevronLeft className="h-5 w-5" />
+            Previous
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            size="lg"
+            className="gap-2 font-semibold hover:bg-white/10"
+            onClick={shuffleCards}
+          >
+            <Shuffle className="h-5 w-5" />
+            Shuffle
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="lg" 
+            className="gap-2 font-semibold hover:bg-white/10"
+            onClick={() => setShowColorPicker(!showColorPicker)}
+          >
+            🎨 Colors
+          </Button>
+
+          <Button 
+            variant="outline" 
+            size="lg"
+            className="gap-2 font-semibold hover:bg-white/10"
+            onClick={exportToAnki}
+          >
+            <Download className="h-5 w-5" />
+            Export
+          </Button>
+
+          <Button 
+            onClick={() => setShowAddCustom(!showAddCustom)} 
+            variant="outline" 
+            size="lg"
+            className="gap-2 border-primary/50 text-primary hover:bg-primary/10 font-semibold"
+          >
+            <Plus className="h-5 w-5" />
+            Add Custom
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleNext}
+            disabled={currentIndex === flashcards.length - 1}
+            size="lg"
+            className="gap-2 font-semibold hover:bg-white/10"
+          >
+            Next
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Secondary Controls */}
+        <div className="flex justify-center gap-3">
+          <Button onClick={generateFlashcards} disabled={isGenerating} variant="outline" size="lg" className="gap-2 font-semibold hover:bg-white/10">
+            {isGenerating && <Loader2 className="h-5 w-5 animate-spin" />}
+            {isGenerating ? 'Regenerating...' : 'Regenerate Cards'}
+          </Button>
+          <Button 
+            onClick={() => deleteFlashcard(currentCard.id!)} 
+            variant="outline" 
+            size="lg"
+            className="gap-2 text-destructive hover:bg-destructive/10 font-semibold"
+          >
+            <Trash2 className="h-5 w-5" />
+            Delete Card
+          </Button>
+        </div>
       </div>
 
-      {/* Navigation and actions */}
-      <div className="flex items-center gap-2 flex-wrap justify-center">
-        <Button
-          variant="ghost"
-          onClick={handlePrevious}
-          disabled={currentIndex === 0}
-          size="sm"
-          className="h-8"
-        >
-          <ChevronLeft className="h-4 w-4 mr-0.5" />
-          Prev
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={handleNext}
-          disabled={currentIndex === flashcards.length - 1}
-          size="sm"
-          className="h-8"
-        >
-          Next
-          <ChevronRight className="h-4 w-4 ml-0.5" />
-        </Button>
-        <Button variant="ghost" onClick={shuffleCards} size="sm" className="h-8">
-          <Shuffle className="h-4 w-4 mr-1" />
-          Shuffle
-        </Button>
-        <Button variant="ghost" onClick={exportToAnki} size="sm" className="h-8">
-          <Download className="h-4 w-4 mr-1" />
-          Export
-        </Button>
-        <Button onClick={generateFlashcards} disabled={isGenerating} variant="outline" size="sm" className="h-8">
-          {isGenerating && <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />}
-          Regenerate
-        </Button>
-      </div>
+      {/* Add Custom Flashcard Form */}
+      {showAddCustom && (
+        <Card className="w-full max-w-lg p-4 border-primary/30 bg-primary/5">
+          <div className="space-y-3">
+            <h3 className="font-semibold text-sm">Create Custom Flashcard</h3>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Question</label>
+              <Input
+                placeholder="Enter the question..."
+                value={customFront}
+                onChange={(e) => setCustomFront(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Answer</label>
+              <Textarea
+                placeholder="Enter the answer..."
+                value={customBack}
+                onChange={(e) => setCustomBack(e.target.value)}
+                className="text-sm min-h-24"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={addCustomFlashcard} 
+                size="sm" 
+                className="flex-1 bg-primary hover:bg-primary/90"
+              >
+                Add Card
+              </Button>
+              <Button 
+                onClick={() => setShowAddCustom(false)} 
+                variant="outline" 
+                size="sm"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Color Picker for Current Card */}
+      {showColorPicker && flashcards.length > 0 && (
+        <Card className="w-full max-w-lg p-4 border-purple-300/30 bg-purple-50/10">
+          <div className="space-y-4">
+            <div className="bg-blue-50/50 border border-blue-200/50 rounded-lg p-3">
+              <p className="text-xs text-blue-900 leading-relaxed">
+                <strong>💡 Why Colors Matter:</strong> Research shows that using different colors for text helps your brain create stronger visual memories. When you see the same color during your exam, it triggers recall of the information you studied. This "color-coding effect" can boost memory retention by up to 20-25%.
+              </p>
+            </div>
+
+            <h3 className="font-semibold text-sm">Customize Text Colors</h3>
+            
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Question Text Color</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color.value}
+                      onClick={() => setFrontColor(color.value)}
+                      className={`h-10 rounded-lg border-2 transition-all hover:scale-110 ${
+                        frontColor === color.value 
+                          ? 'border-primary scale-110' 
+                          : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: color.value }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Answer Text Color</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {colorOptions.map((color) => (
+                    <button
+                      key={color.value}
+                      onClick={() => setBackColor(color.value)}
+                      className={`h-10 rounded-lg border-2 transition-all hover:scale-110 ${
+                        backColor === color.value 
+                          ? 'border-primary scale-110' 
+                          : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: color.value }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-amber-50/50 border border-amber-200/50 rounded-lg p-2.5 text-xs text-amber-900">
+                <strong>💪 Pro Tip:</strong> Use contrasting colors for related cards (e.g., yellow for vocabulary, blue for definitions) to strengthen associations in your memory.
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button 
+                  onClick={() => updateCardColors(currentCard.id!, frontColor, backColor)} 
+                  size="sm" 
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                >
+                  Apply Colors
+                </Button>
+                <Button 
+                  onClick={() => setShowColorPicker(false)} 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

@@ -24,7 +24,14 @@ export function useSubscription() {
       if (!session) return;
 
       // Check subscription status from Stripe
-      await supabase.functions.invoke("check-subscription");
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (currentSession?.access_token) {
+        await supabase.functions.invoke("check-subscription", {
+          headers: {
+            Authorization: `Bearer ${currentSession.access_token}`,
+          },
+        });
+      }
 
       // Get profile data
       const { data: profile } = await supabase

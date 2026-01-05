@@ -62,13 +62,37 @@ serve(async (req) => {
       limit: 1,
     });
 
+    console.log("[CHECK-SUBSCRIPTION] Subscriptions found:", subscriptions.data.length);
+    
     const hasActiveSub = subscriptions.data.length > 0;
     let subscriptionEnd = null;
 
     if (hasActiveSub) {
       const subscription = subscriptions.data[0];
-      subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
-      console.log("[CHECK-SUBSCRIPTION] Active subscription found, ends:", subscriptionEnd);
+      console.log("[CHECK-SUBSCRIPTION] Subscription object:", JSON.stringify({
+        id: subscription.id,
+        status: subscription.status,
+        current_period_end: subscription.current_period_end,
+        current_period_end_type: typeof subscription.current_period_end,
+      }));
+      
+      try {
+        const periodEnd = subscription.current_period_end;
+        if (periodEnd && typeof periodEnd === 'number' && periodEnd > 0) {
+          const timestamp = periodEnd * 1000;
+          const date = new Date(timestamp);
+          if (date && !isNaN(date.getTime())) {
+            subscriptionEnd = date.toISOString();
+            console.log("[CHECK-SUBSCRIPTION] Active subscription found, ends:", subscriptionEnd);
+          } else {
+            console.log("[CHECK-SUBSCRIPTION] Date validation failed - isNaN:", isNaN(date.getTime()));
+          }
+        } else {
+          console.log("[CHECK-SUBSCRIPTION] Period end validation failed:", { periodEnd, type: typeof periodEnd });
+        }
+      } catch (dateError) {
+        console.error("[CHECK-SUBSCRIPTION] Error parsing subscription end date:", dateError);
+      }
     } else {
       console.log("[CHECK-SUBSCRIPTION] No active subscription");
     }

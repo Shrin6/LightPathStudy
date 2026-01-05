@@ -70,19 +70,22 @@ serve(async (req) => {
       });
     }
 
-    // Increment usage
-    const newCount = profile.questions_used + 1;
-    await supabaseClient
-      .from("profiles")
-      .update({ questions_used: newCount })
-      .eq("user_id", user.id);
+    // Use atomic increment function to prevent race conditions
+    const { data: result, error: incrementError } = await supabaseClient
+      .rpc("increment_questions_used", { p_user_id: user.id })
+      .single();
 
+    if (incrementError) {
+      throw new Error(`Failed to increment usage: ${incrementError.message}`);
+    }
+
+    const newCount = result || profile.questions_used + 1;
     console.log("[INCREMENT-USAGE] Incremented to:", newCount);
 
     return new Response(JSON.stringify({
       allowed: true,
       questions_used: newCount,
-      questions_remaining: FREE_QUESTION_LIMIT - newCount,
+      questions_remaining: Math.max(0, FREE_QUESTION_LIMIT - newCount),
       subscribed: false,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

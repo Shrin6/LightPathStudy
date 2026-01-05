@@ -16,7 +16,7 @@ export const AppBreadcrumbs = ({ items, className }: AppBreadcrumbsProps) => {
   return (
     <nav className={cn("flex items-center gap-1 text-sm", className)}>
       <Link 
-        to="/" 
+        to="/dashboard" 
         className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
       >
         <Home className="h-3.5 w-3.5" />

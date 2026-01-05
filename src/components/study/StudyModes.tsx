@@ -9,35 +9,36 @@ interface StudyModesProps {
 }
 
 const modes = [
-  { id: "explain" as StudyMode, label: "Tutor", icon: BookOpen, description: "Ask questions" },
-  { id: "quiz" as StudyMode, label: "Quiz", icon: GraduationCap, description: "Test yourself" },
-  { id: "flashcards" as StudyMode, label: "Flashcards", icon: StickyNote, description: "Review cards" },
-  { id: "memory" as StudyMode, label: "Memory", icon: Lightbulb, description: "Get mnemonics" },
+  { id: "explain" as StudyMode, label: "Tutor", icon: MessageSquare, description: "Ask questions" },
   { id: "worksheet" as StudyMode, label: "Worksheet", icon: FileText, description: "Practice problems" },
-  { id: "notes" as StudyMode, label: "Notes", icon: MessageSquare, description: "Summarize content" },
+  { id: "flashcards" as StudyMode, label: "Flashcards", icon: StickyNote, description: "Review cards" },
+  { id: "quiz" as StudyMode, label: "Quiz", icon: GraduationCap, description: "Test yourself" },
+  { id: "memory" as StudyMode, label: "Memory", icon: Lightbulb, description: "Get mnemonics" },
+  { id: "notes" as StudyMode, label: "Notes", icon: BookOpen, description: "Summarize content" },
 ];
 
 export const StudyModes = ({ mode, setMode }: StudyModesProps) => {
   return (
     <div className="space-y-2">
-      <h3 className="font-medium text-sm">Study Modes</h3>
-      <div className="grid grid-cols-2 gap-1.5">
+      <h3 className="font-semibold text-sm text-muted-foreground">Study Paths</h3>
+      <div className="space-y-1">
         {modes.map((m) => {
           const Icon = m.icon;
           const isActive = mode === m.id;
           return (
             <Button
               key={m.id}
-              variant={isActive ? "default" : "ghost"}
+              variant="ghost"
               className={cn(
-                "h-auto py-3 px-3 flex flex-col items-center gap-1.5 text-xs rounded-xl shadow-sm transition-all duration-200 hover:shadow-md hover:scale-105",
-                isActive && "bg-primary text-primary-foreground shadow-lg scale-105",
-                !isActive && "hover:bg-muted hover:text-foreground"
+                "w-full h-10 justify-start gap-3 px-3 rounded-lg text-sm font-medium transition-all",
+                isActive 
+                  ? "bg-blue-600 text-white hover:bg-blue-700" 
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
               )}
               onClick={() => setMode(m.id)}
             >
               <Icon className="h-4 w-4" />
-              <span className="font-medium">{m.label}</span>
+              <span>{m.label}</span>
             </Button>
           );
         })}

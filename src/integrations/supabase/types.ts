@@ -294,6 +294,66 @@ export type Database = {
         }
         Relationships: []
       }
+      user_memory_tricks: {
+        Row: {
+          answer: string | null
+          collection_id: string | null
+          concept: string
+          created_at: string | null
+          helpful_rating: number | null
+          id: string
+          last_reviewed: string | null
+          memory_trick: string
+          question: string | null
+          style_preference: string | null
+          times_reviewed: number | null
+          user_id: string
+        }
+        Insert: {
+          answer?: string | null
+          collection_id?: string | null
+          concept: string
+          created_at?: string | null
+          helpful_rating?: number | null
+          id?: string
+          last_reviewed?: string | null
+          memory_trick: string
+          question?: string | null
+          style_preference?: string | null
+          times_reviewed?: number | null
+          user_id: string
+        }
+        Update: {
+          answer?: string | null
+          collection_id?: string | null
+          concept?: string
+          created_at?: string | null
+          helpful_rating?: number | null
+          id?: string
+          last_reviewed?: string | null
+          memory_trick?: string
+          question?: string | null
+          style_preference?: string | null
+          times_reviewed?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_memory_tricks_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_memory_tricks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_sessions: {
         Row: {
           collection_id: string | null

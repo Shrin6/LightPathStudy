@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
-import { useSubscription } from "@/hooks/useSubscription";
 import { 
   ArrowLeft, 
   Moon, 
@@ -22,9 +21,7 @@ import {
   Trash2,
   BookOpen,
   Flag,
-  FileText,
-  CreditCard,
-  Sparkles
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -101,12 +98,10 @@ const Settings = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "preferences";
-  const subscription = useSubscription();
   
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [subscriptionEndDate, setSubscriptionEndDate] = useState<string | null>(null);
   
   // Preferences
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
@@ -174,17 +169,6 @@ const Settings = () => {
 
   const loadData = async (userId: string) => {
     try {
-      // Load subscription end date
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('subscription_end')
-        .eq('user_id', userId)
-        .single();
-      
-      if (profile?.subscription_end) {
-        setSubscriptionEndDate(profile.subscription_end);
-      }
-
       // Load collections
       const { data: collectionsData } = await supabase
         .from("collections")
@@ -322,9 +306,8 @@ const Settings = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 max-w-4xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="preferences">Preferences</TabsTrigger>
-            <TabsTrigger value="subscription">Subscription</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="saved">Saved</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
@@ -376,120 +359,6 @@ const Settings = () => {
                     checked={reducedMotion}
                     onCheckedChange={handleReducedMotionChange}
                   />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Subscription Tab */}
-          <TabsContent value="subscription" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <CreditCard className="h-5 w-5" />
-                  Subscription Plan
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Current Plan */}
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-lg">
-                        {subscription.subscribed ? "Pro Plan" : "Free Plan"}
-                      </h3>
-                      {subscription.subscribed && (
-                        <Badge className="bg-gradient-to-r from-purple-500 to-pink-500">
-                          <Sparkles className="h-3 w-3 mr-1" />
-                          Active
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {subscription.subscribed 
-                        ? "Unlimited questions and full access to all features"
-                        : "20 questions per month with basic features"
-                      }
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold">
-                      {subscription.subscribed ? "$9.99" : "$0"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {subscription.subscribed ? "per month" : "forever"}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Usage Stats */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Questions Used</div>
-                    <div className="text-2xl font-bold">{subscription.questionsUsed}</div>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Questions Remaining</div>
-                    <div className="text-2xl font-bold">
-                      {subscription.questionsRemaining === null 
-                        ? "∞" 
-                        : subscription.questionsRemaining
-                      }
-                    </div>
-                  </div>
-                </div>
-
-                {/* Subscription Details */}
-                {subscription.subscribed && subscriptionEndDate && (
-                  <div className="p-4 border rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Next Billing Date</div>
-                    <div className="font-medium">
-                      {new Date(subscriptionEndDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-3">
-                  {subscription.subscribed ? (
-                    <>
-                      <Button 
-                        onClick={subscription.openCustomerPortal}
-                        className="w-full"
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Manage Subscription
-                      </Button>
-                      <p className="text-xs text-center text-muted-foreground">
-                        Update payment method, view invoices, or cancel subscription
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <Button 
-                        onClick={subscription.openCheckout}
-                        className="w-full"
-                      >
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Upgrade to Pro
-                      </Button>
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        <p className="font-medium">Pro features include:</p>
-                        <ul className="space-y-1 ml-4 list-disc">
-                          <li>Unlimited questions</li>
-                          <li>Advanced AI tutor</li>
-                          <li>Full quiz & flashcard library</li>
-                          <li>Study session history</li>
-                          <li>Progress tracking & analytics</li>
-                          <li>Priority support</li>
-                        </ul>
-                      </div>
-                    </>
-                  )}
                 </div>
               </CardContent>
             </Card>

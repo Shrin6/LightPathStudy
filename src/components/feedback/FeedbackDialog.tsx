@@ -17,12 +17,14 @@ import { MessageSquarePlus } from "lucide-react";
 
 interface FeedbackDialogProps {
   userId: string;
+  userEmail?: string;
 }
 
-export const FeedbackDialog = ({ userId }: FeedbackDialogProps) => {
+export const FeedbackDialog = ({ userId, userEmail = 'shorrowkevin@gmail.com' }: FeedbackDialogProps) => {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [email, setEmail] = useState(userEmail);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,6 +38,7 @@ export const FeedbackDialog = ({ userId }: FeedbackDialogProps) => {
     try {
       const { error } = await supabase.from("feedback").insert({
         user_id: userId,
+        email: email.trim(),
         subject: subject.trim(),
         message: message.trim(),
       });
@@ -44,6 +47,7 @@ export const FeedbackDialog = ({ userId }: FeedbackDialogProps) => {
 
       toast.success("Feedback submitted! Thank you for helping us improve.");
       setSubject("");
+      setEmail(userEmail);
       setMessage("");
       setOpen(false);
     } catch (error: any) {
@@ -69,6 +73,17 @@ export const FeedbackDialog = ({ userId }: FeedbackDialogProps) => {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="your@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="subject">Subject</Label>
             <Input

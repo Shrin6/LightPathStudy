@@ -53,9 +53,8 @@ export const TopBar = ({ session, sidebarOpen, setSidebarOpen, collectionName, m
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden h-8 w-8 shrink-0"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-        >
+          className="h-8 w-8 shrink-0"
+          onClick={() => setSidebarOpen(!sidebarOpen)}          data-sidebar-toggle        >
           <Menu className="h-4 w-4" />
         </Button>
         

@@ -624,15 +624,34 @@ serve(async (req) => {
       );
     }
 
-    // Relaxed notes check - real validation happens on collectionContext later
-    if (!notes || typeof notes !== 'string') {
+    // PRE-FLIGHT: Validate input sizes (security - prevent DoS)
+    const MAX_NOTES_SIZE = 52428800; // 50MB
+    const MAX_MESSAGES = 10;
+    const MAX_MESSAGE_SIZE = 5242880; // 5MB per message
+
+    if (notes.length > MAX_NOTES_SIZE) {
       return new Response(
-        JSON.stringify({ error: 'Notes field is required' }),
+        JSON.stringify({ error: `Notes too large. Maximum size is ${MAX_NOTES_SIZE / 1024 / 1024}MB` }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (messages.length > MAX_MESSAGES) {
+      return new Response(
+        JSON.stringify({ error: `Too many messages. Maximum is ${MAX_MESSAGES}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
-    console.log('chat-tutor: notes field length:', notes.length);
+
+    // Validate individual message sizes
+    for (const msg of messages) {
+      if (typeof msg.content === 'string' && msg.content.length > MAX_MESSAGE_SIZE) {
+        return new Response(
+          JSON.stringify({ error: `Message too large. Maximum size per message is ${MAX_MESSAGE_SIZE / 1024 / 1024}MB` }),
+          { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -647,6 +666,46 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: authHeader } } }
     );
+
+    // Check rate limit (60 requests per hour per user)
+    const token = authHeader.replace('Bearer ', '');
+    const { data: userData, error: authError } = await supabaseClient.auth.getUser(token);
+    if (authError || !userData?.user?.id) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create service client for rate limit check
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false } }
+    );
+
+    const { data: withinLimit, error: rateLimitError } = await serviceClient
+      .rpc('check_rate_limit', {
+        p_user_id: userData.user.id,
+        p_endpoint: 'chat-tutor',
+        p_max_requests: 60,
+        p_window_minutes: 60,
+      });
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+      return new Response(
+        JSON.stringify({ error: 'Rate limit check failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!withinLimit) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Maximum 60 requests per hour.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Get user
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();

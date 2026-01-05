@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -52,6 +52,7 @@ export const Sidebar = ({
   const [loading, setLoading] = useState(true);
   const [collectionsOpen, setCollectionsOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
 
   const fetchCollections = async () => {
     try {
@@ -99,30 +100,62 @@ export const Sidebar = ({
     };
   }, []);
 
+  // Click-outside detection to close sidebar
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!isOpen) return;
+      
+      const target = event.target as HTMLElement;
+      // Don't close if clicking inside sidebar or on the hamburger menu button
+      if (
+        sidebarRef.current && 
+        !sidebarRef.current.contains(target) &&
+        !target.closest('[data-sidebar-toggle]')
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    // Only add listener when sidebar is open
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, setIsOpen]);
+
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Overlay - visible on all screen sizes when sidebar is open */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
+          className="fixed inset-0 bg-background/60 backdrop-blur-sm z-40 transition-opacity duration-200"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
+        ref={sidebarRef}
         className={cn(
-          "fixed lg:sticky top-0 left-0 h-screen w-[240px] bg-card border-r flex flex-col z-50 transition-transform duration-200",
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          "fixed top-0 left-0 h-screen w-[420px] bg-background border-r border-border flex flex-col z-50 transition-all duration-300 ease-in-out shadow-lg",
+          isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="h-12 px-3 border-b flex items-center justify-between shrink-0">
-          <span className="font-semibold text-sm">Study Workspace</span>
+        <div className="h-14 px-4 border-b border-border/40 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">L</span>
+            </div>
+            <span className="font-semibold text-base">LightPath Study</span>
+          </div>
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden h-7 w-7"
+            className="h-8 w-8 hover:bg-muted/50"
             onClick={() => setIsOpen(false)}
           >
             <X className="h-4 w-4" />
@@ -130,18 +163,20 @@ export const Sidebar = ({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-3 space-y-4">
+          <div className="p-4 space-y-6">
             {/* Study Modes */}
-            <StudyModes mode={mode} setMode={setMode} />
+            <div>
+              <StudyModes mode={mode} setMode={setMode} />
+            </div>
 
-            {/* Collections */}
+            {/* Your Study Paths / Collections */}
             <Collapsible open={collectionsOpen} onOpenChange={setCollectionsOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-medium py-1 hover:text-primary transition-colors">
-                <span>Collections</span>
+              <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground py-1.5 hover:text-foreground transition-colors">
+                <span>Your Study Paths</span>
                 {collectionsOpen ? (
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3.5 w-3.5" />
                 ) : (
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 )}
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
@@ -157,24 +192,24 @@ export const Sidebar = ({
 
             {/* Document Type Settings */}
             <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-medium py-1 hover:text-primary transition-colors">
+              <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground py-1.5 hover:text-foreground transition-colors">
                 <span>Settings</span>
                 {settingsOpen ? (
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3.5 w-3.5" />
                 ) : (
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 )}
               </CollapsibleTrigger>
               <CollapsibleContent className="pt-2">
                 <div className="space-y-2">
-                  <label className="text-xs text-muted-foreground">
+                  <label className="text-xs font-medium text-muted-foreground">
                     Document type hint
                   </label>
                   <Select
                     value={documentTypeHint}
                     onValueChange={(value) => setDocumentTypeHint(value as DocumentTypeHint)}
                   >
-                    <SelectTrigger className="w-full h-8 text-xs">
+                    <SelectTrigger className="w-full h-9 text-xs">
                       <SelectValue placeholder="Select type..." />
                     </SelectTrigger>
                     <SelectContent>

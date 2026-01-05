@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { useSubscription } from "@/hooks/useSubscription";
+import { CollectionsGrid } from "@/components/dashboard/CollectionsGrid";
 import { 
   BookOpen, 
   Brain, 
@@ -108,8 +108,6 @@ const Dashboard = () => {
   const [progress, setProgress] = useState<CollectionProgress>({ overall: 0, quiz: 0, flashcards: 0, worksheet: 0, lastStudied: null });
   const [likedQuotes, setLikedQuotes] = useState<string[]>([]);
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
-  const [studyStreak, setStudyStreak] = useState(0);
-  const [totalStudyTime, setTotalStudyTime] = useState(0);
   const [studyStreak, setStudyStreak] = useState(0);
   const [totalStudyTime, setTotalStudyTime] = useState(0);
 
@@ -427,75 +425,19 @@ const Dashboard = () => {
               </Card>
             </div>
 
-            {/* Collection Progress */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="h-4 w-4 text-primary" />
-                    Collection Progress
-                  </CardTitle>
-                  {collections.length > 0 && (
-                    <Select value={selectedCollectionId || ""} onValueChange={handleCollectionChange}>
-                      <SelectTrigger className="w-[180px] h-8 text-sm">
-                        <SelectValue placeholder="Select collection" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {collections.map(c => (
-                          <SelectItem key={c.id} value={c.id}>
-                            <div className="flex items-center gap-2">
-                              <FolderOpen className="h-3.5 w-3.5" />
-                              {c.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+            {/* Collections Grid */}
+            <div className="lg:col-span-3">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  <h2 className="text-xl font-bold">Your Collections</h2>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {collections.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No collections yet. Create one to start tracking progress!</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-3xl font-bold text-primary">{progress.overall}%</span>
-                      <span className="text-sm text-muted-foreground">
-                        {selectedCollection?.name}
-                      </span>
-                    </div>
-                    <Progress value={progress.overall} className="h-2" />
-                    
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Brain className="h-4 w-4 mx-auto mb-1 text-primary" />
-                        <div className="text-lg font-semibold">{progress.quiz}%</div>
-                        <div className="text-xs text-muted-foreground">Quiz</div>
-                      </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <Sparkles className="h-4 w-4 mx-auto mb-1 text-info" />
-                        <div className="text-lg font-semibold">{progress.flashcards}%</div>
-                        <div className="text-xs text-muted-foreground">Flashcards</div>
-                      </div>
-                      <div className="text-center p-3 bg-muted/50 rounded-lg">
-                        <FileText className="h-4 w-4 mx-auto mb-1 text-success" />
-                        <div className="text-lg font-semibold">{progress.worksheet}%</div>
-                        <div className="text-xs text-muted-foreground">Worksheet</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>Last studied: {progress.lastStudied || "Not started"}</span>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                <CollectionsGrid
+                  selectedCollectionId={selectedCollectionId}
+                  onSelect={handleCollectionChange}
+                />
+              </div>
+            </div>
 
             {/* Continue Learning */}
             <Card>
