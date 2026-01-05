@@ -688,7 +688,7 @@ serve(async (req) => {
       .rpc('check_rate_limit', {
         p_user_id: userData.user.id,
         p_endpoint: 'chat-tutor',
-        p_max_requests: 60,
+        p_max_requests: 500,
         p_window_minutes: 60,
       });
 
@@ -702,7 +702,7 @@ serve(async (req) => {
 
     if (!withinLimit) {
       return new Response(
-        JSON.stringify({ error: 'Rate limit exceeded. Maximum 60 requests per hour.' }),
+        JSON.stringify({ error: 'Rate limit exceeded. Maximum 500 requests per hour.' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
