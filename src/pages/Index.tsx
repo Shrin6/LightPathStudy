@@ -46,7 +46,7 @@ const Index = () => {
           </div>
           
           <h1 className="text-3xl md:text-5xl font-bold text-foreground leading-tight">
-            Light Path Study: Stop Getting Answers.<br />Start Actually Learning.
+            Light Path Study: Stop Getting Answers. <br />Start Actually Learning.
           </h1>
           
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
@@ -141,26 +141,26 @@ const Index = () => {
                   <span className="text-xl">❌</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground mb-1">Passive AI Use</h3>
-                  <p className="text-sm text-muted-foreground">Get instant answers → Feel smart → Forget everything by test day</p>
+                  <h3 className="font-semibold text-white mb-1">Passive AI Use</h3>
+                  <p className="text-sm text-white font-medium">Get instant answers → Feel smart → Forget everything by test day</p>
                 </div>
               </div>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <span className="text-destructive mt-0.5">•</span>
-                  <span>Zero cognitive effort = zero retention</span>
+                  <span className="text-white font-medium">Zero cognitive effort = zero retention</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-destructive mt-0.5">•</span>
-                  <span>Answers you can't explain in your own words</span>
+                  <span className="text-white font-medium">Answers you can't explain in your own words</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-destructive mt-0.5">•</span>
-                  <span>Dependent on AI for every single problem</span>
+                  <span className="text-white font-medium">Dependent on AI for every single problem</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-destructive mt-0.5">•</span>
-                  <span>Panic when you face a test without ChatGPT</span>
+                  <span className="text-white font-medium">Panic when you face a test without ChatGPT</span>
                 </li>
               </ul>
             </Card>
@@ -171,26 +171,26 @@ const Index = () => {
                   <span className="text-xl">✓</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground mb-1">Active Learning with Lightpath</h3>
-                  <p className="text-sm text-muted-foreground">Struggle productively → Build understanding → Ace tests confidently</p>
+                  <h3 className="font-semibold text-white mb-1">Active Learning with Lightpath</h3>
+                  <p className="text-sm text-white font-medium">Struggle productively → Build understanding → Ace tests confidently</p>
                 </div>
               </div>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <span className="text-success mt-0.5">•</span>
-                  <span>Forces retrieval practice = better memory</span>
+                  <span className="text-white font-medium">Forces retrieval practice = better memory</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-success mt-0.5">•</span>
-                  <span>Guides you to think, not just copy answers</span>
+                  <span className="text-white font-medium">Guides you to think, not just copy answers</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-success mt-0.5">•</span>
-                  <span>Makes you explain concepts = deeper understanding</span>
+                  <span className="text-white font-medium">Makes you explain concepts = deeper understanding</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-success mt-0.5">•</span>
-                  <span>Walk into exams knowing you actually learned it</span>
+                  <span className="text-white font-medium">Walk into exams knowing you actually learned it</span>
                 </li>
               </ul>
             </Card>
