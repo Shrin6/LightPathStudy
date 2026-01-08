@@ -359,10 +359,6 @@ const Dashboard = () => {
     );
   }
 
-  if (!session) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -375,7 +371,7 @@ const Dashboard = () => {
           <AppBreadcrumbs items={[{ label: "Dashboard" }]} />
         </div>
         <div className="flex items-center gap-2">
-          <FeedbackDialog userId={session.user.id} />
+          {session && <FeedbackDialog userId={session.user.id} />}
           {subscription.subscribed ? (
             <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 hidden sm:flex">
               <Sparkles className="h-3 w-3 mr-1" />
@@ -386,21 +382,96 @@ const Dashboard = () => {
               Free
             </Badge>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/settings")}>
-            <Settings className="h-4 w-4" />
-          </Button>
-          <span className="text-sm text-muted-foreground hidden md:block">
-            {session?.user?.email}
-          </span>
-          <Button variant="outline" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Sign Out</span>
-          </Button>
+          {session ? (
+            <>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/settings")}>
+                <Settings className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground hidden md:block">
+                {session?.user?.email}
+              </span>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" onClick={() => navigate("/auth")}>
+              Sign In
+            </Button>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 max-w-5xl">
+        {isReadOnly ? (
+          /* Guest View */
+          <div className="space-y-6">
+            <Card className="border-2 border-primary/20">
+              <CardContent className="pt-6 text-center space-y-4">
+                <div className="flex justify-center">
+                  <div className="p-4 bg-primary/10 rounded-full">
+                    <BookOpen className="h-12 w-12 text-primary" />
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">Welcome to Lightpath Study</h2>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Sign in to create collections, track your progress, and start your learning journey.
+                  </p>
+                </div>
+                <div className="flex gap-3 justify-center">
+                  <Button size="lg" onClick={() => navigate("/auth")}>
+                    Sign In to Get Started
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={() => navigate("/study")}>
+                    Explore Study Tools
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Feature Preview */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-primary" />
+                    AI Tutor
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Chat with an AI tutor that asks YOU questions to check understanding</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                    Smart Flashcards
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Auto-generated flashcards with spaced repetition for better memory</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    Practice Tests
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Quizzes and worksheets tailored to your study materials</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        ) : (
         <div className="grid lg:grid-cols-3 gap-5">
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-5">
@@ -531,6 +602,7 @@ const Dashboard = () => {
             </Card>
           </div>
         </div>
+        )}
       </main>
     </div>
   );

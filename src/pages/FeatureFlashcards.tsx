@@ -12,7 +12,8 @@ const FeatureFlashcards = () => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        navigate("/auth");
+        // Allow guests to view in read-only mode
+        setLoading(false);
         return;
       }
       
