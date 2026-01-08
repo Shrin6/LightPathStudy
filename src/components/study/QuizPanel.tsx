@@ -24,6 +24,7 @@ interface QuizPanelProps {
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
   onUsageCheck?: () => Promise<boolean>;
+  readOnly?: boolean;
 }
 
 interface QuizQuestion {
@@ -151,7 +152,7 @@ const sanitizeQuizJSON = (text: string): QuizQuestion[] | null => {
   }
 };
 
-export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: QuizPanelProps) => {
+export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck, readOnly = false }: QuizPanelProps) => {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
@@ -279,6 +280,11 @@ export const QuizPanel = ({ collectionId, collectionContent, documentTypeHint, o
     // Spam prevention: don't allow multiple simultaneous generations
     if (isGenerating) {
       console.warn("Quiz generation already in progress");
+      return;
+    }
+
+    if (readOnly) {
+      toast.error("Sign in to generate quizzes");
       return;
     }
     
@@ -653,7 +659,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
       <div className="flex items-center justify-center h-full p-6">
         <div className="text-center space-y-3">
           <p className="text-sm text-muted-foreground">Ready to test your knowledge?</p>
-          <Button onClick={generateQuiz} disabled={isGenerating} size="sm">
+          <Button onClick={generateQuiz} disabled={isGenerating || readOnly} size="sm">
             {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isGenerating ? "Generating..." : "Generate Quiz"}
           </Button>
@@ -714,7 +720,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
             </div>
 
             <div className="flex gap-2 justify-center pt-2">
-              <Button onClick={generateQuiz} size="sm" disabled={isGenerating}>
+              <Button onClick={generateQuiz} size="sm" disabled={isGenerating || readOnly}>
                 {isGenerating ? "Generating..." : "Take Another Quiz"}
               </Button>
               <Button variant="outline" size="sm" onClick={() => setQuizComplete(false)}>

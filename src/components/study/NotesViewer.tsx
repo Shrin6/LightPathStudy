@@ -21,9 +21,10 @@ interface NotesViewerProps {
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
   onUsageCheck?: () => Promise<boolean>;
+  readOnly?: boolean;
 }
 
-export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: NotesViewerProps) => {
+export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck, readOnly = false }: NotesViewerProps) => {
   const [notes, setNotes] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
@@ -32,6 +33,11 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint,
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (readOnly) {
+      toast.error('Sign in to upload images');
+      return;
+    }
 
     if (!file.type.startsWith('image/')) {
       toast.error('Please upload an image file');
@@ -85,6 +91,11 @@ export const NotesViewer = ({ collectionId, collectionContent, documentTypeHint,
   };
 
   const generateNotes = async () => {
+    if (readOnly) {
+      toast.error('Sign in to generate notes');
+      return;
+    }
+
     if (!collectionId || collectionContent.length < 300) {
       toast.error('Not enough content to generate notes');
       return;
@@ -311,7 +322,7 @@ Use clear, readable formatting ready to copy into Notion, OneNote, or GoodNotes.
             <Button
               variant="outline"
               size="sm"
-              disabled={isProcessingImage}
+              disabled={isProcessingImage || readOnly}
               asChild
               className="h-8 text-xs"
             >
@@ -335,7 +346,7 @@ Use clear, readable formatting ready to copy into Notion, OneNote, or GoodNotes.
           
           <Button 
             onClick={generateNotes} 
-            disabled={isGenerating}
+            disabled={isGenerating || readOnly}
             size="sm"
             className="flex-1 h-8 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 dark:from-purple-700 dark:to-pink-700 dark:hover:from-purple-800 dark:hover:to-pink-800"
           >

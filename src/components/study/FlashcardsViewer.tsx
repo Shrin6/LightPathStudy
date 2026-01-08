@@ -17,6 +17,7 @@ interface FlashcardsViewerProps {
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
   onUsageCheck?: () => Promise<boolean>;
+  readOnly?: boolean;
 }
 
 interface Flashcard {
@@ -30,7 +31,7 @@ interface Flashcard {
   back_color?: string;
 }
 
-export const FlashcardsViewer = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: FlashcardsViewerProps) => {
+export const FlashcardsViewer = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck, readOnly = false }: FlashcardsViewerProps) => {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -87,6 +88,11 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   };
 
   const generateFlashcards = async () => {
+    if (readOnly) {
+      toast.error('Sign in to generate flashcards');
+      return;
+    }
+
     if (!collectionId) {
       toast.error('Please select a collection first');
       return;
@@ -477,7 +483,7 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
       <div className="flex items-center justify-center h-full p-6">
         <div className="text-center space-y-3">
           <p className="text-sm text-muted-foreground">No flashcards yet</p>
-          <Button onClick={generateFlashcards} disabled={isGenerating} size="sm">
+          <Button onClick={generateFlashcards} disabled={isGenerating || readOnly} size="sm">
             {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isGenerating ? 'Generating...' : 'Generate Flashcards'}
           </Button>
@@ -709,7 +715,7 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
 
         {/* Secondary Controls */}
         <div className="flex justify-center gap-3">
-          <Button onClick={generateFlashcards} disabled={isGenerating} variant="outline" size="lg" className="gap-2 font-semibold hover:bg-white/10">
+          <Button onClick={generateFlashcards} disabled={isGenerating || readOnly} variant="outline" size="lg" className="gap-2 font-semibold hover:bg-white/10">
             {isGenerating && <Loader2 className="h-5 w-5 animate-spin" />}
             {isGenerating ? 'Regenerating...' : 'Regenerate Cards'}
           </Button>

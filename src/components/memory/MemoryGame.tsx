@@ -63,6 +63,7 @@ interface MemoryGameProps {
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
   onUsageCheck?: () => Promise<boolean>;
+  readOnly?: boolean;
 }
 
 function stripJson(raw: string): MemoryPack | null {
@@ -126,7 +127,7 @@ const randomExamples = [
   },
 ];
 
-export const MemoryGame = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: MemoryGameProps) => {
+export const MemoryGame = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck, readOnly = false }: MemoryGameProps) => {
   const [topic, setTopic] = useState("");
   const [contentType, setContentType] = useState<string>("Mixed/Not sure");
   const [styles, setStyles] = useState<string[]>(["Acronym", "Mnemonic phrase"]);
@@ -216,6 +217,11 @@ export const MemoryGame = ({ collectionId, collectionContent, documentTypeHint, 
 
 
   const handleGenerate = async (overrideDifficulty?: Difficulty) => {
+    if (readOnly) {
+      toast.error("Sign in to generate memory tricks");
+      return;
+    }
+
     if (!collectionId) {
       toast.error("Select a collection first.");
       return;
@@ -451,7 +457,7 @@ export const MemoryGame = ({ collectionId, collectionContent, documentTypeHint, 
             </div>
 
             <div className="flex items-center gap-2">
-              <Button onClick={() => handleGenerate()} disabled={loading} className="gap-2">
+              <Button onClick={() => handleGenerate()} disabled={loading || readOnly} className="gap-2">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                 Generate
               </Button>

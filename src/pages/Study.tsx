@@ -32,6 +32,7 @@ const Study = () => {
   const [searchParams] = useSearchParams();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [mode, setMode] = useState<StudyMode>("explain");
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [collectionContent, setCollectionContent] = useState<string>("");
@@ -63,7 +64,9 @@ const Study = () => {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
-        navigate("/auth");
+        // Guest user - allow read-only access
+        setIsReadOnly(true);
+        setLoading(false);
         return;
       }
 
@@ -81,16 +84,19 @@ const Study = () => {
       }
 
       setSession(session);
+      setIsReadOnly(false);
       setLoading(false);
     };
 
     checkAuthAndActivation();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
+      if (session) {
         setSession(session);
+        setIsReadOnly(false);
+      } else {
+        setSession(null);
+        setIsReadOnly(true);
       }
     });
 
@@ -141,11 +147,13 @@ const Study = () => {
     );
   }
 
-  if (!session) {
-    return null;
-  }
-
   const handleUsageCheck = async (): Promise<boolean> => {
+    if (isReadOnly) {
+      // Guest users need to sign in
+      navigate("/auth");
+      return false;
+    }
+
     if (subscription.subscribed) return true;
 
     const allowed = await subscription.incrementUsage();
@@ -166,6 +174,7 @@ const Study = () => {
               collectionContent={collectionContent}
               documentTypeHint={documentTypeHint}
               onUsageCheck={handleUsageCheck}
+              readOnly={isReadOnly}
             />
           );
         case "quiz":
@@ -175,6 +184,7 @@ const Study = () => {
               collectionContent={collectionContent}
               documentTypeHint={documentTypeHint}
               onUsageCheck={handleUsageCheck}
+              readOnly={isReadOnly}
             />
           );
         case "worksheet":
@@ -184,6 +194,7 @@ const Study = () => {
               collectionContent={collectionContent}
               documentTypeHint={documentTypeHint}
               onUsageCheck={handleUsageCheck}
+              readOnly={isReadOnly}
             />
           );
         case "notes":
@@ -193,6 +204,7 @@ const Study = () => {
               collectionContent={collectionContent}
               documentTypeHint={documentTypeHint}
               onUsageCheck={handleUsageCheck}
+              readOnly={isReadOnly}
             />
           );
         case "memory":
@@ -202,6 +214,7 @@ const Study = () => {
               collectionContent={collectionContent}
               documentTypeHint={documentTypeHint}
               onUsageCheck={handleUsageCheck}
+              readOnly={isReadOnly}
             />
           );
         default:
@@ -212,6 +225,7 @@ const Study = () => {
               collectionContent={collectionContent}
               documentTypeHint={documentTypeHint}
               onUsageCheck={handleUsageCheck}
+              readOnly={isReadOnly}
             />
           );
       }

@@ -24,6 +24,7 @@ interface WorksheetPanelProps {
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
   onUsageCheck?: () => Promise<boolean>;
+  readOnly?: boolean;
 }
 
 interface WorksheetQuestion {
@@ -142,7 +143,7 @@ function sanitizeWorksheetResponse(raw: string): WorksheetResponse | null {
   }
 }
 
-export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck }: WorksheetPanelProps) => {
+export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHint, onUsageCheck, readOnly = false }: WorksheetPanelProps) => {
   const [worksheetMode, setWorksheetMode] = useState<WorksheetMode>('onsite');
   const [topicFocus, setTopicFocus] = useState('');
   const [worksheet, setWorksheet] = useState<WorksheetResponse | null>(null);
@@ -176,6 +177,11 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
   const { elapsedSeconds } = useTimeTracking({ enabled: !!worksheet && !showResults });
 
   const generateWorksheet = async (questionCount: number = 20) => {
+    if (readOnly) {
+      toast.error('Sign in to generate worksheets');
+      return;
+    }
+
     if (!collectionId) {
       toast.error('Please select a collection first');
       return;
@@ -846,7 +852,7 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
           
           <Button 
             onClick={() => generateWorksheet(20)} 
-            disabled={isGenerating}
+            disabled={isGenerating || readOnly}
             size="lg"
             className="w-full"
           >
@@ -871,7 +877,7 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
               <Download className="mr-2 h-4 w-4" />
               Download PDF
             </Button>
-            <Button onClick={() => generateWorksheet(20)} disabled={isGenerating} size="sm">
+            <Button onClick={() => generateWorksheet(20)} disabled={isGenerating || readOnly} size="sm">
               {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Regenerate
             </Button>

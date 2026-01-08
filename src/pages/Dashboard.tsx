@@ -110,11 +110,14 @@ const Dashboard = () => {
   const [todayQuote, setTodayQuote] = useState(BIBLE_QUOTES[0]);
   const [studyStreak, setStudyStreak] = useState(0);
   const [totalStudyTime, setTotalStudyTime] = useState(0);
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
-        navigate("/auth");
+        // Guest user - allow read-only access
+        setIsReadOnly(true);
+        setLoading(false);
         return;
       }
       
@@ -137,16 +140,19 @@ const Dashboard = () => {
           }
           
           setSession(session);
+          setIsReadOnly(false);
           loadCollections(session.user.id);
           setLoading(false);
         });
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!session) {
-        navigate("/auth");
-      } else {
+      if (session) {
         setSession(session);
+        setIsReadOnly(false);
+      } else {
+        setSession(null);
+        setIsReadOnly(true);
       }
     });
 

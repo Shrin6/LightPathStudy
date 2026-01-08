@@ -25,9 +25,10 @@ interface ChatPaneProps {
   collectionContent: string;
   documentTypeHint: DocumentTypeHint;
   onUsageCheck?: () => Promise<boolean>;
+  readOnly?: boolean;
 }
 
-export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHint, onUsageCheck }: ChatPaneProps) => {
+export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHint, onUsageCheck, readOnly = false }: ChatPaneProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -154,6 +155,11 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
+
+    if (readOnly) {
+      toast.error("Sign in to chat with your tutor");
+      return;
+    }
 
     if (!collectionId) {
       toast.error("Please select a collection first");
@@ -510,7 +516,7 @@ export const ChatPane = ({ mode, collectionId, collectionContent, documentTypeHi
             </div>
             <Button
               onClick={sendMessage}
-              disabled={!collectionId || !input.trim() || loading}
+              disabled={readOnly || !collectionId || !input.trim() || loading}
               size="icon"
               className="h-14 w-14 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg shadow-purple-500/30 shrink-0"
             >
