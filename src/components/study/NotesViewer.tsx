@@ -4,6 +4,7 @@ import { Loader2, Image as ImageIcon, Copy, Download, BookOpen, Lightbulb, Targe
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { copyToClipboard, exportToTxt, exportToPdf, exportToDocx } from '@/lib/exportUtils';
+import { formatNotes } from '@/lib/textFormatting';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -376,7 +377,7 @@ Use clear, readable formatting ready to copy into Notion, OneNote, or GoodNotes.
           <div className="max-w-4xl mx-auto">
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm p-6">
               <div className="text-sm leading-relaxed whitespace-pre-wrap font-sans text-slate-800 dark:text-slate-100">
-                {notes}
+                {formatNotes(notes)}
               </div>
             </div>
           </div>

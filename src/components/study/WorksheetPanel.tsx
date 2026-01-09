@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { exportWorksheetToPdf } from '@/lib/exportUtils';
 import { DocumentTypeHint } from "@/pages/Study";
+import { formatQuestion, formatAnswer, formatExplanation } from "@/lib/textFormatting";
 import { ReportDialog, ReportPayload } from "./ReportDialog";
 import { insertLearningEvent } from "@/lib/learningEvents";
 import { useTimeTracking } from "@/hooks/useTimeTracking";
@@ -901,7 +902,7 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
                   <div className="space-y-2 ml-4">
                     {q.choices.map((choice, i) => (
                       <p key={i} className="text-muted-foreground">
-                        {String.fromCharCode(65 + i)}. {choice}
+                        {String.fromCharCode(65 + i)}. {formatAnswer(choice)}
                       </p>
                     ))}
                   </div>
@@ -1016,7 +1017,7 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
               
               {/* Question text */}
               <h3 className="text-xl font-semibold text-slate-900 dark:text-white leading-relaxed mb-6">
-                {currentQuestion.prompt}
+                {formatQuestion(currentQuestion.prompt)}
               </h3>
 
               {/* Answer area */}
@@ -1109,7 +1110,7 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
                         </p>
                       )}
                       <p className="text-sm font-semibold text-slate-700 mb-1.5">Explanation:</p>
-                      <p className="text-sm text-slate-600 leading-relaxed">{currentQuestion.explanation}</p>
+                      <p className="text-sm text-slate-600 leading-relaxed">{formatExplanation(currentQuestion.explanation)}</p>
                     </div>
 
                     {/* Memory Trick Section */}

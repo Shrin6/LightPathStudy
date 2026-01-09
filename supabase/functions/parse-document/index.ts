@@ -37,10 +37,15 @@ function sanitizeText(text: string): string {
 // =====================================================
 // READABILITY CHECK: For standard text extraction
 // =====================================================
-function isReadableText(text: string): boolean {
+function isReadableText(text: string, fileType?: string): boolean {
   const trimmed = text.trim();
 
-  if (trimmed.length < 200) {
+  // Relaxed thresholds for PDFs and DOCX
+  const minLength = (fileType === 'pdf' || fileType === 'docx') ? 100 : 200;
+  const minAlphaRatio = (fileType === 'pdf' || fileType === 'docx') ? 0.2 : 0.3;
+  const minWordCount = (fileType === 'pdf' || fileType === 'docx') ? 10 : 20;
+
+  if (trimmed.length < minLength) {
     console.log("isReadableText: FAIL - too short:", trimmed.length);
     return false;
   }
@@ -49,7 +54,7 @@ function isReadableText(text: string): boolean {
   const alphaCount = alphaMatches ? alphaMatches.length : 0;
   const alphaRatio = alphaCount / trimmed.length;
 
-  if (alphaRatio < 0.3) {
+  if (alphaRatio < minAlphaRatio) {
     console.log("isReadableText: FAIL - low alpha ratio:", alphaRatio.toFixed(2));
     return false;
   }
@@ -63,7 +68,7 @@ function isReadableText(text: string): boolean {
   const wordMatches = trimmed.match(/[a-zA-Z]{2,}/g);
   const wordCount = wordMatches ? wordMatches.length : 0;
 
-  if (wordCount < 20) {
+  if (wordCount < minWordCount) {
     console.log("isReadableText: FAIL - too few words:", wordCount);
     return false;
   }
@@ -99,6 +104,26 @@ function isVisionContentReadable(text: string, docKind: string): boolean {
   return true;
 }
 
+// =====================================================
+// GIBBERISH DETECTOR: Check for high-entropy/random text
+// =====================================================
+function isLikelyGibberish(text: string): boolean {
+  if (text.length < 20) return false;  // Too short to analyze
+  
+  const chars = text.split('');
+  const uniqueChars = new Set(chars).size;
+  const entropy = uniqueChars / text.length;
+  
+  // High entropy (>0.8) suggests random/gibberish data
+  if (entropy > 0.8) return true;
+  
+  // Check for long runs of non-alphabetic characters
+  const nonAlphaRuns = text.match(/[^a-zA-Z\s]{10,}/g);
+  if (nonAlphaRuns && nonAlphaRuns.some(run => run.length > 20)) return true;
+  
+  return false;
+}
+
 // Semantic chunker: breaks text into 300-500 char chunks preserving sentence boundaries
 function chunkText(text: string): string[] {
   const chunks: string[] = [];
@@ -124,8 +149,8 @@ function chunkText(text: string): string[] {
     chunks.push(currentChunk.trim());
   }
 
-  // For vision content, allow smaller chunks (50+ chars)
-  return chunks.filter((c) => c.length >= 50);
+  // For vision content, allow smaller chunks (30+ chars)
+  return chunks.filter((c) => c.length >= 30);
 }
 
 // =====================================================
@@ -449,7 +474,7 @@ function countPDFPages(arrayBuffer: ArrayBuffer): number {
 }
 
 // Extract text from PDF (standard extraction only)
-function extractPDFText(arrayBuffer: ArrayBuffer): string {
+function extractPDFText(arrayBuffer: ArrayBuffer): { text: string; warning?: string } {
   try {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(arrayBuffer);
 
@@ -468,20 +493,28 @@ function extractPDFText(arrayBuffer: ArrayBuffer): string {
         .trim();
     }
 
-    if (extracted.length < 200) {
+    let warning: string | undefined;
+
+    if (extracted.length < 100) {
       const asciiText = text
         .replace(/[^\x20-\x7E\n\r\t]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      if (asciiText.length > extracted.length) {
+      
+      // Only use ASCII fallback if it adds meaningful content and isn't gibberish
+      if (asciiText.length > extracted.length * 1.5 && asciiText.length > 20 && !isLikelyGibberish(asciiText)) {
         extracted = asciiText;
       }
     }
 
-    return extracted;
+    if (extracted.length < 100) {
+      warning = "Warning: Extracted text is very short; content may be incomplete or image-based. Consider uploading as images for better results.";
+    }
+
+    return { text: extracted, warning };
   } catch (error) {
     console.error("PDF extraction error:", error);
-    return "";
+    return { text: "", warning: "Error extracting text from PDF." };
   }
 }
 
@@ -1292,17 +1325,26 @@ serve(async (req) => {
         console.log(`PDF has ${pageCount} pages`);
 
         if (pageCount > 30) {
-          parsedContent = extractPDFText(arrayBuffer);
-          parsedContent = sanitizeText(parsedContent);
+          const pdfResult = extractPDFText(arrayBuffer);
+          parsedContent = sanitizeText(pdfResult.text);
+
+          if (pdfResult.warning) {
+            parsedContent += "\n\n" + pdfResult.warning;
+          }
 
           if (parsedContent.length < 300) {
             parsedContent = "Large PDF with limited extractable text. Try uploading individual pages as images for better results.";
           }
           console.log("Large PDF - standard extraction only");
         } else {
-          parsedContent = extractPDFText(arrayBuffer);
+          const pdfResult = extractPDFText(arrayBuffer);
+          parsedContent = pdfResult.text;
           documentMode = detectDocumentMode(arrayBuffer, parsedContent);
           console.log(`Document mode detected: ${documentMode}`);
+
+          if (pdfResult.warning) {
+            parsedContent += "\n\n" + pdfResult.warning;
+          }
 
           if (documentMode === "vision" || (documentMode === "hybrid" && parsedContent.length < 500)) {
             // For scanned PDFs, we cannot reliably convert to image
@@ -1397,7 +1439,7 @@ serve(async (req) => {
       contentIsReadable = isVisionContentReadable(parsedContent, docKind);
       console.log(`isVisionContentReadable = ${contentIsReadable} (docKind=${docKind})`);
     } else {
-      contentIsReadable = isReadableText(parsedContent);
+      contentIsReadable = isReadableText(parsedContent, fileType);
       console.log("isReadableText =", contentIsReadable);
     }
 

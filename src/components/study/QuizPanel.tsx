@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, CheckCircle2, XCircle, HelpCircle, BarChart3, Lightbulb, Brain, Sparkles, Flag, GraduationCap, FileUp } from "lucide-react";
+import { formatQuestion, formatAnswer, formatExplanation } from "@/lib/textFormatting";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { DocumentTypeHint } from "@/pages/Study";
@@ -795,7 +796,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-base font-medium flex-1">{currentQuestion.question}</p>
+            <p className="text-base font-medium flex-1">{formatQuestion(currentQuestion.question)}</p>
             <ReportDialog
               feature="quiz"
               payload={{
@@ -828,7 +829,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
               >
                 <RadioGroupItem value={idx.toString()} id={`option-${idx}`} disabled={isChecked} />
                 <Label htmlFor={`option-${idx}`} className="flex-1 cursor-pointer text-sm">
-                  {option}
+                  {formatAnswer(option)}
                   {isChecked && idx === currentQuestion.correctAnswer && (
                     <CheckCircle2 className="inline ml-2 h-4 w-4 text-green-600" />
                   )}
@@ -875,7 +876,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                   <Lightbulb className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
                   <div className="text-sm">
                     <p className="font-medium text-green-700 dark:text-green-400 mb-1">Why the correct answer is correct:</p>
-                    <p className="text-muted-foreground">{currentQuestion.explanation.correct}</p>
+                    <p className="text-muted-foreground">{formatExplanation(currentQuestion.explanation.correct)}</p>
                   </div>
                 </div>
                 
@@ -892,7 +893,7 @@ Be creative, fun, and memorable. Focus on WHY the answer is correct.`
                           return (
                             <li key={idx} className="flex gap-1">
                               <span className="font-medium shrink-0">{String.fromCharCode(65 + idx)}:</span>
-                              <span>{reason}</span>
+                              <span>{formatExplanation(reason)}</span>
                             </li>
                           );
                         })}
