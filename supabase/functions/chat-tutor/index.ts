@@ -626,20 +626,12 @@ serve(async (req) => {
 
     // PRE-FLIGHT: Validate input sizes (security - prevent DoS)
     const MAX_NOTES_SIZE = 52428800; // 50MB
-    const MAX_MESSAGES = 10;
     const MAX_MESSAGE_SIZE = 5242880; // 5MB per message
 
     if (notes.length > MAX_NOTES_SIZE) {
       return new Response(
         JSON.stringify({ error: `Notes too large. Maximum size is ${MAX_NOTES_SIZE / 1024 / 1024}MB` }),
         { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (messages.length > MAX_MESSAGES) {
-      return new Response(
-        JSON.stringify({ error: `Too many messages. Maximum is ${MAX_MESSAGES}` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -677,6 +669,32 @@ serve(async (req) => {
       );
     }
 
+    // Check subscription status to determine message limits
+    const { data: profile, error: profileError } = await supabaseClient
+      .from('profiles')
+      .select('subscribed')
+      .eq('id', userData.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile lookup error:', profileError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to check subscription status' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Profile:', profile);
+    console.log('Subscribed:', profile?.subscribed);
+    console.log('Messages length:', messages.length);
+
+    if (!profile?.subscribed && messages.length > 10) {
+      return new Response(
+        JSON.stringify({ error: `Too many messages. Maximum is 10` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Create service client for rate limit check
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -707,15 +725,7 @@ serve(async (req) => {
       );
     }
 
-    // Get user
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - invalid or expired token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    const user = userData.user;
     console.log('Chat tutor request - Mode:', mode, 'Collection:', collectionId, 'User:', user.id);
 
     // PRE-FLIGHT: Check if collection exists and belongs to user
