@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { LogOut, Menu, LayoutDashboard } from "lucide-react";
+import { LogOut, Menu, LayoutDashboard, Settings as SettingsIcon } from "lucide-react";
 import { Session } from "@supabase/supabase-js";
 import { AppBreadcrumbs, BreadcrumbItem } from "@/components/ui/app-breadcrumbs";
 import lightpathLogo from "@/assets/lightpath-logo.png";
@@ -82,6 +82,16 @@ export const TopBar = ({ session, sidebarOpen, setSidebarOpen, collectionName, m
         >
           <LayoutDashboard className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Dashboard</span>
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => navigate("/settings")}
+          title="Settings"
+        >
+          <SettingsIcon className="h-4 w-4" />
         </Button>
         
         {session?.user?.email && (
