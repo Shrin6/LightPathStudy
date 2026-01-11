@@ -2,8 +2,8 @@
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.profiles (id, user_id, subscribed, questions_used, alpha_activated)
-  VALUES (gen_random_uuid(), NEW.id, false, 0, false);
+  INSERT INTO public.profiles (id, user_id, display_name, subscribed, questions_used, alpha_activated)
+  VALUES (gen_random_uuid(), NEW.id, NEW.email, false, 0, false);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
