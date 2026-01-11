@@ -42,6 +42,22 @@ serve(async (req) => {
 
     if (profileError) throw new Error(`Profile error: ${profileError.message}`);
 
+    // Temporary whitelist for test accounts (remove after testing)
+    const TEST_WHITELIST = new Set(["84117a19-0d1d-4d59-acfa-cdb8b71e2be5"]);
+    if (TEST_WHITELIST.has(user.id)) {
+      console.log("[INCREMENT-USAGE] User is whitelisted for unlimited access (TEST_WHITELIST)");
+      return new Response(JSON.stringify({
+        allowed: true,
+        questions_used: profile.questions_used,
+        questions_remaining: null,
+        subscribed: true,
+        whitelisted: true,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
     // If subscribed, allow unlimited
     if (profile.subscribed) {
       console.log("[INCREMENT-USAGE] User is subscribed, unlimited access");
