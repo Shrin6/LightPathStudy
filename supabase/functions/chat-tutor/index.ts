@@ -684,18 +684,25 @@ serve(async (req) => {
       );
     }
 
+    // Determine if user is subscribed (default to false if profile is null)
+    const isSubscribed = profile?.subscribed === true;
     console.log('Profile:', profile);
-    console.log('Subscribed:', profile?.subscribed);
+    console.log('Is Subscribed:', isSubscribed);
     console.log('Messages length:', messages.length);
 
-    if (!profile?.subscribed && messages.length > 10) {
+    // Free users (non-subscribed) limited to 10 messages per conversation
+    // Pro users (subscribed) have unlimited messages
+    if (!isSubscribed && messages.length > 10) {
       return new Response(
-        JSON.stringify({ error: `Too many messages. Maximum is 10` }),
+        JSON.stringify({ error: `Too many messages (free user limit: 10). Upgrade to pro for unlimited messages per conversation.` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create service client for rate limit check
+    // Rate limiting: Pro users have higher limits
+    // Free users: 10 requests/hour, Pro users: 500 requests/hour
+    const maxRequests = isSubscribed ? 500 : 10;
+    
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -706,7 +713,7 @@ serve(async (req) => {
       .rpc('check_rate_limit', {
         p_user_id: userData.user.id,
         p_endpoint: 'chat-tutor',
-        p_max_requests: 500,
+        p_max_requests: maxRequests,
         p_window_minutes: 60,
       });
 
@@ -719,14 +726,17 @@ serve(async (req) => {
     }
 
     if (!withinLimit) {
+      const message = isSubscribed 
+        ? 'Rate limit exceeded. Pro users have 500 requests per hour.'
+        : 'Rate limit exceeded. Free users have 10 requests per hour. Upgrade to pro for unlimited access.';
       return new Response(
-        JSON.stringify({ error: 'Rate limit exceeded. Maximum 500 requests per hour.' }),
+        JSON.stringify({ error: message }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const user = userData.user;
-    console.log('Chat tutor request - Mode:', mode, 'Collection:', collectionId, 'User:', user.id);
+    console.log('Chat tutor request - Mode:', mode, 'Collection:', collectionId, 'User:', user.id, 'Subscription:', isSubscribed ? 'pro' : 'free');
 
     // PRE-FLIGHT: Check if collection exists and belongs to user
     const { data: collection, error: collectionError } = await supabaseClient
