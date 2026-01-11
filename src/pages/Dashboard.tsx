@@ -387,9 +387,14 @@ const Dashboard = () => {
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/settings")}>
                 <Settings className="h-4 w-4" />
               </Button>
-              <span className="text-sm text-muted-foreground hidden md:block">
-                {session?.user?.email}
-              </span>
+              {session?.user?.email && (
+                <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-md bg-muted/50">
+                  <span className="text-xs text-muted-foreground">User:</span>
+                  <span className="text-xs font-medium text-foreground max-w-[150px] truncate">
+                    {session.user.email}
+                  </span>
+                </div>
+              )}
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Sign Out</span>

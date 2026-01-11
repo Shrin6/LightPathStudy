@@ -85,9 +85,12 @@ export const TopBar = ({ session, sidebarOpen, setSidebarOpen, collectionName, m
         </Button>
         
         {session?.user?.email && (
-          <span className="text-xs text-muted-foreground hidden md:block max-w-[120px] truncate">
-            {session.user.email}
-          </span>
+          <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-md bg-muted/50">
+            <span className="text-xs text-muted-foreground">User:</span>
+            <span className="text-xs font-medium text-foreground max-w-[100px] truncate">
+              {session.user.email}
+            </span>
+          </div>
         )}
         
         {session && (

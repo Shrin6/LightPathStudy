@@ -217,6 +217,15 @@ export const SettingsAccount = () => {
         <CardDescription>Manage your account and security</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Display Name (Email) */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Display Name</Label>
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="text-sm font-medium text-foreground">{user?.email}</p>
+            <p className="text-xs text-muted-foreground mt-1">Your email serves as your display name in the app</p>
+          </div>
+        </div>
+
         {/* Email Display */}
         <div className="space-y-2">
           <Label className="text-sm font-medium">Email</Label>
