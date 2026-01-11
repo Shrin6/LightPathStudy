@@ -684,13 +684,18 @@ serve(async (req) => {
       );
     }
 
+    // Count user messages separately to avoid counting system/assistant/tool messages
+    const userMessagesCount = Array.isArray(messages) ? messages.filter((m: any) => m.role === 'user').length : 0;
+
     console.log('Profile:', profile);
     console.log('Subscribed:', profile?.subscribed);
-    console.log('Messages length:', messages.length);
+    console.log('Messages length (total):', Array.isArray(messages) ? messages.length : 0);
+    console.log('User messages count:', userMessagesCount);
 
-    if (!profile?.subscribed && messages.length > 10) {
+    // Enforce per-conversation limit on user messages for free users
+    if (!profile?.subscribed && userMessagesCount > 10) {
       return new Response(
-        JSON.stringify({ error: `Too many messages. Maximum is 10` }),
+        JSON.stringify({ error: `Too many messages. Maximum user messages per conversation is 10` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -848,35 +853,104 @@ ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, 
     // Get the latest user message for semantic search
     const lastUserMessage = messages.filter((m: any) => m.role === 'user').pop();
     const searchQuery = lastUserMessage?.content || '';
-    
-    // ATTEMPT 1: Vector search via match_document_chunks RPC
+
+    // Configuration for context assembly
+    export const CONTEXT_CHAR_BUDGET = 25000; // stop assembling when reached
+    export const PER_FILE_CHUNK_LIMIT = 4; // max chunks per file to include
+
+    /**
+     * Build parsed content deterministically from an ordered list of files
+     * Returns a context string (joined), list of used file ids, char count and truncated flag
+     */
+    export function buildParsedContentFromFiles(files: any[], charBudget: number) {
+      const collectedParts: string[] = [];
+      let charCount = 0;
+      const filesUsed: string[] = [];
+
+      for (const f of files) {
+        const pc = (f.parsed_content || '').trim();
+        if (!pc) continue;
+        if (charCount >= charBudget) break;
+
+        const remaining = charBudget - charCount;
+        if (pc.length <= remaining) {
+          collectedParts.push(pc);
+          charCount += pc.length;
+        } else if (remaining > 0) {
+          collectedParts.push(pc.substring(0, remaining));
+          charCount += remaining;
+        }
+        filesUsed.push(String(f.id));
+      }
+
+      return {
+        context: collectedParts.join('\n\n'),
+        filesUsed,
+        charCount,
+        truncated: charCount >= charBudget,
+      };
+    }
+
+    // ATTEMPT 1: Vector search via match_document_chunks RPC (group by file, fair selection)
     if (searchQuery && searchQuery.length > 10) {
       console.log('Attempting VECTOR_SEARCH via OpenRouter embedding...');
       const queryEmbedding = await generateQueryEmbedding(searchQuery);
-      
+
       if (queryEmbedding) {
         // Format embedding as Postgres vector literal
         const embeddingVector = `[${queryEmbedding.join(',')}]`;
-        
+
         const { data: semanticChunks, error: semanticError } = await supabaseClient
           .rpc('match_document_chunks', {
             query_embedding: embeddingVector,
             match_collection_id: collectionId,
             match_user_id: user.id,
-            match_count: 10,
+            match_count: 50,
           });
-        
+
         if (semanticError) {
           console.warn('RPC match_document_chunks error:', semanticError.message);
         } else if (semanticChunks && semanticChunks.length > 0) {
+          // Keep only useful chunks and group by file_id
           const validChunks = semanticChunks
-            .filter((c: any) => c.chunk_text && c.similarity !== null)
+            .filter((c: any) => c.chunk_text && c.similarity !== null && c.file_id)
             .sort((a: any, b: any) => (b.similarity || 0) - (a.similarity || 0));
-          
+
           if (validChunks.length > 0) {
-            collectionContext = validChunks.map((c: any) => c.chunk_text).join('\n\n');
+            const grouped = new Map<string, any[]>();
+            for (const c of validChunks) {
+              const fid = String(c.file_id);
+              if (!grouped.has(fid)) grouped.set(fid, []);
+              grouped.get(fid)?.push(c);
+            }
+
+            // Order files by their top chunk similarity (descending)
+            const fileGroups = Array.from(grouped.entries())
+              .map(([file_id, chunks]) => ({ file_id, chunks }))
+              .sort((a, b) => (b.chunks[0].similarity || 0) - (a.chunks[0].similarity || 0));
+
+            // Build context by taking up to PER_FILE_CHUNK_LIMIT per file until budget
+            const selectedChunks: string[] = [];
+            const filesUsedSet = new Set<string>();
+            let charCount = 0;
+
+            for (const group of fileGroups) {
+              const perFile = group.chunks.slice(0, PER_FILE_CHUNK_LIMIT);
+              for (const c of perFile) {
+                if (charCount >= CONTEXT_CHAR_BUDGET) break;
+                const text = String(c.chunk_text || '');
+                if (!text) continue;
+                selectedChunks.push(text);
+                charCount += text.length;
+                filesUsedSet.add(String(group.file_id));
+              }
+              if (charCount >= CONTEXT_CHAR_BUDGET) break;
+            }
+
+            collectionContext = selectedChunks.join('\n\n');
             contextSource = 'VECTOR_SEARCH';
-            console.log(`[${contextSource}] Retrieved ${validChunks.length} chunks, top similarity: ${validChunks[0]?.similarity?.toFixed(3)}`);
+            console.log(`[${contextSource}] Retrieved ${selectedChunks.length} chunks, files_used=${Array.from(filesUsedSet).join(',')}, chars=${charCount}`);
+            if (charCount >= CONTEXT_CHAR_BUDGET) console.log(`[${contextSource}] Truncated at budget ${CONTEXT_CHAR_BUDGET}`);
           }
         }
       }
@@ -885,25 +959,55 @@ ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, 
     // ATTEMPT 2: Direct chunk retrieval (fallback - no embeddings needed)
     if (!collectionContext || collectionContext.length < 300) {
       console.log('Using CHUNKS_FALLBACK...');
-      
-      const { data: directChunks, error: directChunksError } = await supabaseClient
-        .from('document_chunks')
-        .select('chunk_text, chunk_index')
-        .eq('collection_id', collectionId)
-        .order('chunk_index', { ascending: true })
-        .limit(15);
 
-      if (directChunksError) {
-        console.warn('Direct chunks query error:', directChunksError.message);
-      } else if (directChunks && directChunks.length > 0) {
-        const chunkTexts = directChunks
-          .filter((c: any) => c.chunk_text && c.chunk_text.length > 0)
-          .map((c: any) => c.chunk_text);
-        
-        if (chunkTexts.length > 0) {
-          collectionContext = chunkTexts.join('\n\n');
+      // Fetch files in the collection in deterministic order
+      const { data: filesForChunks, error: filesForChunksError } = await supabaseClient
+        .from('uploaded_files')
+        .select('id')
+        .eq('collection_id', collectionId)
+        .order('created_at', { ascending: true });
+
+      if (filesForChunksError) {
+        console.warn('Files lookup for chunks error:', filesForChunksError.message);
+      } else if (filesForChunks && filesForChunks.length > 0) {
+        const collected: string[] = [];
+        const filesUsed: string[] = [];
+        let charCount = 0;
+
+        for (const f of filesForChunks) {
+          if (charCount >= CONTEXT_CHAR_BUDGET) break;
+          const fileId = f.id;
+          const { data: fileChunks, error: fileChunksError } = await supabaseClient
+            .from('document_chunks')
+            .select('chunk_text, chunk_index')
+            .eq('file_id', fileId)
+            .order('chunk_index', { ascending: true })
+            .limit(PER_FILE_CHUNK_LIMIT);
+
+          if (fileChunksError) {
+            console.warn(`Chunks query for file ${fileId} error:`, fileChunksError.message);
+            continue;
+          }
+
+          const texts = (fileChunks || [])
+            .filter((c: any) => c.chunk_text && c.chunk_text.length > 0)
+            .map((c: any) => c.chunk_text);
+
+          if (texts.length > 0) {
+            for (const t of texts) {
+              if (charCount >= CONTEXT_CHAR_BUDGET) break;
+              collected.push(t);
+              charCount += t.length;
+            }
+            filesUsed.push(String(fileId));
+          }
+        }
+
+        if (collected.length > 0) {
+          collectionContext = collected.join('\n\n');
           contextSource = 'CHUNKS_FALLBACK';
-          console.log(`[${contextSource}] Retrieved ${chunkTexts.length} chunks directly`);
+          console.log(`[${contextSource}] Retrieved ${collected.length} chunks from files=${filesUsed.join(',')}, chars=${charCount}`);
+          if (charCount >= CONTEXT_CHAR_BUDGET) console.log(`[${contextSource}] Truncated at budget ${CONTEXT_CHAR_BUDGET}`);
         }
       }
     }
@@ -911,12 +1015,13 @@ ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, 
     // ATTEMPT 3: Parsed content fallback (last resort)
     if (!collectionContext || collectionContext.length < 300) {
       console.log('Trying PARSED_CONTENT_FALLBACK...');
-      
+
       const { data: files, error: filesError } = await supabaseClient
         .from('uploaded_files')
-        .select('file_name, parsed_content')
+        .select('id, file_name, parsed_content, created_at')
         .eq('collection_id', collectionId)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
 
       if (filesError) {
         console.error('Files lookup error:', filesError);
@@ -936,11 +1041,10 @@ ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, 
         );
       }
 
-      const contentParts = files
-        .filter((f: any) => f.parsed_content && f.parsed_content.trim().length > 0)
-        .map((f: any) => f.parsed_content);
+      // Use helper to build parsed content deterministically with budget
+      const parsedResult = buildParsedContentFromFiles(files, CONTEXT_CHAR_BUDGET);
 
-      if (contentParts.length === 0) {
+      if (!parsedResult.context || parsedResult.context.trim().length === 0) {
         return new Response(
           JSON.stringify({ 
             error: 'Files are still being processed. Please wait a moment and try again.',
@@ -950,9 +1054,10 @@ ADAPTIVE INSTRUCTION: If the user has weak areas and the mode is explain, quiz, 
         );
       }
 
-      collectionContext = contentParts.join('\n\n');
+      collectionContext = parsedResult.context;
       contextSource = 'PARSED_CONTENT_FALLBACK';
-      console.log(`[${contextSource}] Using parsed_content, length: ${collectionContext.length}`);
+      console.log(`[${contextSource}] Using parsed_content from files=${parsedResult.filesUsed.join(',')}, length: ${collectionContext.length}`);
+      if (parsedResult.truncated) console.log(`[${contextSource}] Truncated at budget ${CONTEXT_CHAR_BUDGET}`);
     }
     
     console.log('chat-tutor: final collectionContext length:', collectionContext.length);
