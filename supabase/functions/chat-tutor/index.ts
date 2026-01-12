@@ -684,14 +684,19 @@ serve(async (req) => {
       );
     }
 
+    // Temporary whitelist for test accounts (remove after testing)
+    const TEST_WHITELIST = new Set(["84117a19-0d1d-4d59-acfa-cdb8b71e2be5"]);
+    const isWhitelisted = TEST_WHITELIST.has(userData.user.id);
+
     // Determine if user is subscribed (default to false if profile is null)
-    const isSubscribed = profile?.subscribed === true;
+    const isSubscribed = profile?.subscribed === true || isWhitelisted;
     console.log('Profile:', profile);
     console.log('Is Subscribed:', isSubscribed);
+    console.log('Is Whitelisted:', isWhitelisted);
     console.log('Messages length:', messages.length);
 
     // Free users (non-subscribed) limited to 10 messages per conversation
-    // Pro users (subscribed) have unlimited messages
+    // Pro users (subscribed) and whitelisted users have unlimited messages
     if (!isSubscribed && messages.length > 10) {
       return new Response(
         JSON.stringify({ error: `Too many messages (free user limit: 10). Upgrade to pro for unlimited messages per conversation.` }),
