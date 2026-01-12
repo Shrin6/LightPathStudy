@@ -125,20 +125,20 @@ const Dashboard = () => {
       supabase
         .from("profiles")
         .select("alpha_activated")
-        .eq("id", session.user.id)
-        .single()
+        .eq("user_id", session.user.id)
+        .maybeSingle()
         .then(({ data: profile, error }) => {
           if (error) {
             console.error("Error fetching profile:", error);
             setLoading(false);
             return;
           }
-          
+
           if (!profile || profile.alpha_activated !== true) {
             navigate("/activate");
             return;
           }
-          
+
           setSession(session);
           setIsReadOnly(false);
           loadCollections(session.user.id);

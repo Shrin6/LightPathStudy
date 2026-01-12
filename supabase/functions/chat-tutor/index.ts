@@ -673,7 +673,7 @@ serve(async (req) => {
     const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('subscribed')
-      .eq('id', userData.user.id)
+      .eq('user_id', userData.user.id)
       .maybeSingle();
 
     if (profileError) {
@@ -685,11 +685,13 @@ serve(async (req) => {
     }
 
     // Temporary whitelist for test accounts (remove after testing)
+    const userId = String(userData.user.id).toLowerCase();
     const TEST_WHITELIST = new Set(["84117a19-0d1d-4d59-acfa-cdb8b71e2be5"]);
-    const isWhitelisted = TEST_WHITELIST.has(userData.user.id);
+    const isWhitelisted = TEST_WHITELIST.has(userId);
 
     // Determine if user is subscribed (default to false if profile is null)
     const isSubscribed = profile?.subscribed === true || isWhitelisted;
+    console.log('User ID:', userData.user.id);
     console.log('Profile:', profile);
     console.log('Is Subscribed:', isSubscribed);
     console.log('Is Whitelisted:', isWhitelisted);
