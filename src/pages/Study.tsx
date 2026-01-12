@@ -73,8 +73,8 @@ const Study = () => {
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("alpha_activated")
-        .eq("id", session.user.id)
-        .single();
+        .eq("user_id", session.user.id)
+        .maybeSingle();
 
       if (profileError) {
         console.error("Error checking activation:", profileError);
