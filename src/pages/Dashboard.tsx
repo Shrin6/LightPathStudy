@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useProfileAutoFix } from "@/hooks/useProfileAutoFix";
 import { CollectionsGrid } from "@/components/dashboard/CollectionsGrid";
 import { 
   BookOpen, 
@@ -101,6 +102,7 @@ interface CollectionProgress {
 const Dashboard = () => {
   const navigate = useNavigate();
   const subscription = useSubscription();
+  const { profileReady } = useProfileAutoFix();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [collections, setCollections] = useState<Collection[]>([]);

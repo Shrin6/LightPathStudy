@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import lightpathLogo from "@/assets/lightpath-logo.png";
 import { ArrowLeft } from "lucide-react";
+import { useProfileAutoFix } from "@/hooks/useProfileAutoFix";
 import { z } from "zod";
 
 // Input validation schema for authentication
@@ -67,6 +68,9 @@ const Auth = () => {
     const randomIndex = Math.floor(Math.random() * BIBLE_QUOTES.length);
     return BIBLE_QUOTES[randomIndex];
   });
+  
+  // Auto-fix missing profiles on login
+  useProfileAutoFix();
 
   useEffect(() => {
     // Check if user is already logged in
