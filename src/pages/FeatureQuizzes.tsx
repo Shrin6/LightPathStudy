@@ -10,27 +10,8 @@ const FeatureQuizzes = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        // Allow guests to view in read-only mode
-        setLoading(false);
-        return;
-      }
-      
-      // Check if alpha activated
-      supabase
-        .from("profiles")
-        .select("alpha_activated")
-        .eq("id", session.user.id)
-        .single()
-        .then(({ data: profile }) => {
-          if (!profile?.alpha_activated) {
-            navigate("/activate");
-            return;
-          }
-          setLoading(false);
-        });
-    });
+    // Allow both authenticated and guest users
+    setLoading(false);
   }, [navigate]);
 
   if (loading) {
