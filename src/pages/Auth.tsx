@@ -136,10 +136,14 @@ const Auth = () => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
+      // Use current origin for redirect - Supabase handles the OAuth callback
+      const redirectUrl = window.location.origin;
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: false,
         },
       });
       
