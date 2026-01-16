@@ -128,21 +128,9 @@ const Settings = () => {
         return;
       }
       
-      // Check if alpha activated
-      supabase
-        .from("profiles")
-        .select("alpha_activated")
-        .eq("id", session.user.id)
-        .single()
-        .then(({ data: profile }) => {
-          if (!profile?.alpha_activated) {
-            navigate("/activate");
-            return;
-          }
-          setSession(session);
-          loadData(session.user.id);
-          setLoading(false);
-        });
+      setSession(session);
+      loadData(session.user.id);
+      setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {

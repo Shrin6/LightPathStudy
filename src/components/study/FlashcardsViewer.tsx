@@ -45,6 +45,7 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [frontColor, setFrontColor] = useState("#ffffff");
   const [backColor, setBackColor] = useState("#ffffff");
+  const [topicFocus, setTopicFocus] = useState("");
 
   const colorOptions = [
     { name: "White", value: "#ffffff" },
@@ -134,12 +135,13 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
         body: JSON.stringify({
           messages: [{ 
             role: 'user', 
-            content: 'Generate flashcards from my study notes.' 
+            content: `Generate flashcards from my study notes.${topicFocus ? ` Focus on: ${topicFocus}` : ''}` 
           }],
           mode: 'flashcards',
           collectionId,
           notes: collectionContent,
           document_type_hint: documentTypeHint,
+          topic_focus: topicFocus,
         }),
       });
 
@@ -481,12 +483,25 @@ export const FlashcardsViewer = ({ collectionId, collectionContent, documentType
   if (flashcards.length === 0) {
     return (
       <div className="flex items-center justify-center h-full p-6">
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-4 max-w-md">
           <p className="text-sm text-muted-foreground">No flashcards yet</p>
-          <Button onClick={generateFlashcards} disabled={isGenerating || readOnly} size="sm">
-            {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isGenerating ? 'Generating...' : 'Generate Flashcards'}
-          </Button>
+          
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-2">What do you want to focus on? (optional)</label>
+              <Input
+                value={topicFocus}
+                onChange={(e) => setTopicFocus(e.target.value)}
+                placeholder="ex: photosynthesis, calculus integrals, vocabulary"
+                className="w-full"
+              />
+            </div>
+            
+            <Button onClick={generateFlashcards} disabled={isGenerating || readOnly} size="sm" className="w-full">
+              {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isGenerating ? 'Generating...' : 'Generate Flashcards'}
+            </Button>
+          </div>
         </div>
       </div>
     );

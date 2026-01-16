@@ -23,7 +23,8 @@ import {
   Sparkles,
   Flame,
   MessageSquare,
-  Info
+  Info,
+  Calendar
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -476,6 +477,18 @@ const Dashboard = () => {
                   <p className="text-sm text-muted-foreground">Quizzes and worksheets tailored to your study materials</p>
                 </CardContent>
               </Card>
+
+              <Card className="cursor-pointer" onClick={() => navigate('/calendar-converter')}>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Calendar Converter
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">Upload multiple syllabi and merge with existing calendars into one master .ics file</p>
+                </CardContent>
+              </Card>
             </div>
           </div>
         ) : (
@@ -557,6 +570,22 @@ const Dashboard = () => {
                   </span>
                   <ArrowRight className="h-4 w-4" />
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Calendar Converter Quick Access */}
+            <Card className="cursor-pointer" onClick={() => navigate('/calendar-converter')}>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  Calendar Converter
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Quickly merge multiple syllabi and existing calendars into a single master .ics file.</p>
+                <div className="mt-3">
+                  <Button size="sm" onClick={() => navigate('/calendar-converter')}>Open Calendar Converter</Button>
+                </div>
               </CardContent>
             </Card>
 

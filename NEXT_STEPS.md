@@ -8,6 +8,7 @@
 2. **Error Handling** - Gracefully handles missing columns during pre-migration state
 3. **Feedback Button** - Now linked to your email: `shorrowkevin@gmail.com`
 4. **Progress Grid** - Dashboard shows collection progress without crashing
+5. new ui upgarde
 
 ### ⚠️ Database Migration Required
 

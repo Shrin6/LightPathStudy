@@ -323,12 +323,12 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     }
   };
 
-  // Load collection and check for resume on mount
+  // Load collection and restore worksheet session on mount
   useEffect(() => {
     if (!collectionId) return;
 
     const loadCollectionData = async () => {
-      // Check for incomplete sessions to resume
+      // Check for incomplete sessions to resume and auto-restore
       const { data: user } = await supabase.auth.getUser();
       if (user?.user?.id) {
         const incompleteSessions = await getIncompleteSessions(
@@ -338,6 +338,25 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
         );
         if (incompleteSessions.length > 0) {
           setHasResume(true);
+          
+          // Auto-restore the most recent incomplete session
+          const session = incompleteSessions[0];
+          if (session?.session_data) {
+            const data = session.session_data;
+            
+            // Restore all worksheet state from saved session
+            if (data.worksheet) setWorksheet(data.worksheet);
+            if (data.currentQuestionIndex !== undefined) setCurrentQuestionIndex(data.currentQuestionIndex);
+            if (data.userAnswers) setUserAnswers(data.userAnswers);
+            if (data.checkedAnswers) setCheckedAnswers(data.checkedAnswers);
+            if (data.idkAnswers) setIdkAnswers(data.idkAnswers);
+            if (data.masteryByTopic) setMasteryByTopic(data.masteryByTopic);
+            
+            // Restore session ID for auto-save
+            setCurrentSessionId(session.id);
+            
+            toast.success('Worksheet restored from previous session');
+          }
         }
       }
     };
@@ -609,6 +628,33 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
     setGeneratedMemoryTrick("");
   };
 
+  const handleCloseWorksheet = async () => {
+    if (!currentSessionId) return;
+    
+    // Mark the session as completed
+    await updateSession(currentSessionId, {
+      isCompleted: true,
+      ended_at: new Date().toISOString(),
+    });
+    
+    // Clear worksheet state
+    setWorksheet(null);
+    setCurrentQuestionIndex(0);
+    setUserAnswers({});
+    setCheckedAnswers({});
+    setIdkAnswers({});
+    setManuallyCorrected({});
+    setShowResults(false);
+    setSelectedChoice(null);
+    setUserTextAnswer('');
+    setShowMemoryTrick(false);
+    setGeneratedMemoryTrick("");
+    setCurrentSessionId(null);
+    setHasResume(false);
+    
+    toast.success('Worksheet closed');
+  };
+
   const getScore = (): number => {
     if (!worksheet) return 0;
     return worksheet.questions.filter(q => checkedAnswers[q.id] && !idkAnswers[q.id] && isAnswerCorrect(q)).length;
@@ -760,6 +806,10 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
               </Button>
               <Button onClick={handleGenerateMore}>
                 Generate 20 More
+              </Button>
+              <Button onClick={handleCloseWorksheet} variant="destructive" size="sm">
+                <X className="mr-2 h-4 w-4" />
+                Close Worksheet
               </Button>
             </div>
           </CardContent>
@@ -976,6 +1026,15 @@ IMPORTANT: Write in plain text. NEVER use asterisks or stars for emphasis. Do NO
             <Button onClick={handleDownload} variant="ghost" size="sm" className="h-9 px-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
               <Download className="h-4 w-4 mr-2" />
               Export
+            </Button>
+            <Button 
+              onClick={handleCloseWorksheet} 
+              variant="ghost" 
+              size="sm" 
+              className="h-9 px-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 hover:text-red-700"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Close
             </Button>
           </div>
         </div>

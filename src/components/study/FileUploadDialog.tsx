@@ -199,7 +199,10 @@ export const FileUploadDialog = ({
           "text/plain",
           "image/jpeg",
           "image/png",
+          "text/calendar", // .ics files
         ];
+
+        const isICS = file.name.toLowerCase().endsWith('.ics');
 
         if (!validTypes.includes(file.type)) {
           toast.error(`${file.name} is not a supported file type`);
@@ -209,6 +212,16 @@ export const FileUploadDialog = ({
         // Sanitize filename to remove special characters that Supabase Storage doesn't allow
         const sanitizedFileName = file.name.replace(/[^\w\s.-]/g, '_');
         
+        // If ICS, read file text for storing as parsed_content
+        let parsedContent: string | null = null;
+        if (isICS) {
+          try {
+            parsedContent = await file.text();
+          } catch (err) {
+            console.warn('Failed to read .ics file text:', err);
+          }
+        }
+
         // Upload to storage
         const filePath = `${user.id}/${Date.now()}-${sanitizedFileName}`;
         const { error: uploadError } = await supabase.storage
@@ -224,7 +237,7 @@ export const FileUploadDialog = ({
 
         if (uploadError) throw uploadError;
 
-        // Save to database
+        // Save to database (include parsed_content for .ics files)
         const { data: fileRecord, error: dbError } = await supabase
           .from("uploaded_files")
           .insert({
@@ -234,6 +247,7 @@ export const FileUploadDialog = ({
             file_path: filePath,
             file_type: file.type,
             file_size: file.size,
+            parsed_content: parsedContent,
           })
           .select()
           .single();
@@ -356,7 +370,7 @@ export const FileUploadDialog = ({
                   id="file-upload"
                   className="hidden"
                   multiple
-                  accept=".pdf,.docx,.pptx,.txt,.jpg,.jpeg,.png"
+                  accept=".pdf,.docx,.pptx,.txt,.jpg,.jpeg,.png,.ics"
                   onChange={(e) => e.target.files && initiateFileSelection(e.target.files)}
                 />
                 <Button
