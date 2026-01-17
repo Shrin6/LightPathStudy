@@ -342,15 +342,15 @@ export const WorksheetPanel = ({ collectionId, collectionContent, documentTypeHi
           // Auto-restore the most recent incomplete session
           const session = incompleteSessions[0];
           if (session?.session_data) {
-            const data = session.session_data;
+            const data = session.session_data as Record<string, unknown>;
             
             // Restore all worksheet state from saved session
-            if (data.worksheet) setWorksheet(data.worksheet);
-            if (data.currentQuestionIndex !== undefined) setCurrentQuestionIndex(data.currentQuestionIndex);
-            if (data.userAnswers) setUserAnswers(data.userAnswers);
-            if (data.checkedAnswers) setCheckedAnswers(data.checkedAnswers);
-            if (data.idkAnswers) setIdkAnswers(data.idkAnswers);
-            if (data.masteryByTopic) setMasteryByTopic(data.masteryByTopic);
+            if (data.worksheet) setWorksheet(data.worksheet as WorksheetResponse);
+            if (data.currentQuestionIndex !== undefined) setCurrentQuestionIndex(data.currentQuestionIndex as number);
+            if (data.userAnswers) setUserAnswers(data.userAnswers as Record<string, string>);
+            if (data.checkedAnswers) setCheckedAnswers(data.checkedAnswers as Record<string, boolean>);
+            if (data.idkAnswers) setIdkAnswers(data.idkAnswers as Record<string, boolean>);
+            if (data.masteryByTopic) setMasteryByTopic(data.masteryByTopic as Record<string, SkillMastery>);
             
             // Restore session ID for auto-save
             setCurrentSessionId(session.id);
