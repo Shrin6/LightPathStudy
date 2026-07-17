@@ -23,8 +23,8 @@ const Index = () => {
       <header className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src={lightpathLogo} alt="Light Path Study" className="w-8 h-8 rounded-lg" />
-            <span className="font-semibold text-lg">Light Path Study</span>
+            <img src={lightpathLogo} alt="absractWity" className="w-8 h-8 rounded-lg" />
+            <span className="font-semibold text-lg">absractWity</span>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
@@ -42,15 +42,15 @@ const Index = () => {
       <section className="py-16 md:py-24 px-4">
         <div className="container mx-auto max-w-4xl text-center space-y-6">
           <div className="flex justify-center mb-6">
-            <img src={lightpathLogo} alt="Light Path Study" className="w-20 h-20 rounded-2xl shadow-md" />
+            <img src={lightpathLogo} alt="absractWity" className="w-20 h-20 rounded-2xl shadow-md" />
           </div>
           
           <h1 className="text-3xl md:text-5xl font-bold text-foreground leading-tight">
-            Light Path Study: Stop Getting Answers. <br />Start Actually Learning.
+            absractWity: Stop Getting Answers. <br />Start Actually Learning.
           </h1>
           
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            ChatGPT gets your homework done. But when exam day comes? You're stuck. <strong className="text-foreground">Light Path Study</strong> is an AI learning platform that forces you to <span className="font-semibold text-foreground">think, recall, and understand</span>—so the knowledge actually sticks.
+            ChatGPT gets your homework done. But when exam day comes? You're stuck. <strong className="text-foreground">absractWity</strong> is an AI learning platform that forces you to <span className="font-semibold text-foreground">think, recall, and understand</span>—so the knowledge actually sticks.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
@@ -73,18 +73,18 @@ const Index = () => {
         </div>
       </section>
 
-      {/* What is Light Path Study Section */}
+      {/* What is absractWity Section */}
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-4xl">
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-6 text-foreground">
-            What is Light Path Study?
+            What is absractWity?
           </h2>
           <div className="space-y-4 text-muted-foreground">
             <p className="text-base md:text-lg">
-              <strong className="text-foreground">Light Path Study</strong> is an AI-powered learning platform designed to help students truly master their material—not just memorize it. Unlike traditional study apps or AI tools that simply provide answers, Light Path Study guides you along a clear path to deep understanding through active learning techniques.
+              <strong className="text-foreground">absractWity</strong> is an AI-powered learning platform designed to help students truly master their material—not just memorize it. Unlike traditional study apps or AI tools that simply provide answers, absractWity guides you along a clear path to deep understanding through active learning techniques.
             </p>
             <p className="text-base md:text-lg">
-              The "light path" in Light Path Study represents the illuminated journey from confusion to clarity. Just as light reveals what was hidden in darkness, our platform shines a light on concepts you're struggling with, making complex topics accessible and understandable.
+              The "light path" in absractWity represents the illuminated journey from confusion to clarity. Just as light reveals what was hidden in darkness, our platform shines a light on concepts you're struggling with, making complex topics accessible and understandable.
             </p>
           </div>
           
@@ -95,7 +95,7 @@ const Index = () => {
                 Active Learning
               </h3>
               <p className="text-sm text-muted-foreground">
-                Light Path Study uses proven active learning methods—retrieval practice, spaced repetition, and Socratic questioning—to ensure knowledge sticks.
+                absractWity uses proven active learning methods—retrieval practice, spaced repetition, and Socratic questioning—to ensure knowledge sticks.
               </p>
             </Card>
             
@@ -105,7 +105,7 @@ const Index = () => {
                 Your Materials
               </h3>
               <p className="text-sm text-muted-foreground">
-                Upload your own notes, slides, or textbooks. Light Path Study creates personalized quizzes, flashcards, and study guides from YOUR content.
+                Upload your own notes, slides, or textbooks. absractWity creates personalized quizzes, flashcards, and study guides from YOUR content.
               </p>
             </Card>
             
@@ -115,7 +115,7 @@ const Index = () => {
                 Proven Results
               </h3>
               <p className="text-sm text-muted-foreground">
-                Students using Light Path Study report better test scores, deeper understanding, and more confidence in their ability to learn difficult subjects.
+                Students using absractWity report better test scores, deeper understanding, and more confidence in their ability to learn difficult subjects.
               </p>
             </Card>
           </div>
@@ -432,7 +432,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-6 px-4 border-t bg-card">
         <div className="container mx-auto text-center text-sm text-muted-foreground">
-          <p>© 2024 Light Path Study. Learn deeply, think critically, remember permanently.</p>
+          <p>© 2024 absractWity. Learn deeply, think critically, remember permanently.</p>
         </div>
       </footer>
     </div>

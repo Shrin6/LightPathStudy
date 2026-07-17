@@ -27,7 +27,7 @@ export function generateICS(
 
   let ics = `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Light Path Study//Calendar//EN
+PRODID:-//absractWity//Calendar//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 X-WR-CALNAME:${calendarName}
