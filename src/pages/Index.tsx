@@ -1,440 +1,193 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BookOpen, Brain, FileText, Lightbulb, Upload, GraduationCap, ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock3, Play, ShieldCheck, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import lightpathLogo from "@/assets/lightpath-logo.png";
-import { PricingPlans } from "@/components/pricing/PricingPlans";
+
+const purchasingModels = [
+  {
+    title: "Labor Only (Supply Your Own Materials)",
+    description:
+      "Hire verified crews while you source materials independently. Perfect for owners who already have suppliers and want transparent labor tracking.",
+    cta: "Compare Labor Teams",
+  },
+  {
+    title: "Milestone Payments (Deposit and Progress Payments)",
+    description:
+      "Release funds by approved milestones. AI progress checks and engineer sign-off ensure each stage is complete before payment.",
+    cta: "View Payment Structure",
+  },
+  {
+    title: "Managed Build (Engineering Oversight Included)",
+    description:
+      "End-to-end managed delivery with engineering oversight, quality checks, and centralized reporting for sponsors and property owners.",
+    cta: "Request Managed Build",
+  },
+];
+
+const timelineMilestones = [
+  { phase: "Foundation", status: "Completed", date: "May 15" },
+  { phase: "Structural Walls", status: "On Track", date: "Jun 28" },
+  { phase: "Roofing", status: "In Review", date: "Jul 19" },
+  { phase: "Finishing", status: "Scheduled", date: "Aug 12" },
+];
 
 const Index = () => {
   const navigate = useNavigate();
 
-  const handleDashboardClick = () => {
-    // 1% chance to play easter egg audio
-    if (Math.random() < 0.01) {
-      const audio = new Audio("/public/easter-egg.mp3");
-      audio.play().catch(err => console.log("Audio play failed:", err));
-    }
-    navigate("/dashboard");
-  };
-
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top Navigation */}
-      <header className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src={lightpathLogo} alt="absractWity" className="w-8 h-8 rounded-lg" />
-            <span className="font-semibold text-lg">absractWity</span>
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+          <div>
+            <p className="text-lg font-bold text-blue-700">BuildLiberia Connect</p>
+            <p className="text-xs text-slate-500">Construction transparency portal</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
-              Home
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleDashboardClick}>Dashboard</Button>
-            <Button size="sm" onClick={() => navigate("/auth")}>
-              Sign In
-            </Button>
+            <Button variant="ghost" onClick={() => navigate("/dashboard")}>Dashboard</Button>
+            <Button onClick={() => navigate("/auth")}>Get Started</Button>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="py-16 md:py-24 px-4">
-        <div className="container mx-auto max-w-4xl text-center space-y-6">
-          <div className="flex justify-center mb-6">
-            <img src={lightpathLogo} alt="absractWity" className="w-20 h-20 rounded-2xl shadow-md" />
-          </div>
-          
-          <h1 className="text-3xl md:text-5xl font-bold text-foreground leading-tight">
-            absractWity: Stop Getting Answers. <br />Start Actually Learning.
-          </h1>
-          
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            ChatGPT gets your homework done. But when exam day comes? You're stuck. <strong className="text-foreground">absractWity</strong> is an AI learning platform that forces you to <span className="font-semibold text-foreground">think, recall, and understand</span>—so the knowledge actually sticks.
+      <main className="container mx-auto max-w-7xl space-y-10 px-4 py-10 md:py-14">
+        <section className="space-y-4 text-center">
+          <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">Professional SaaS Visualization</p>
+          <h1 className="text-3xl font-bold md:text-5xl">Build smarter, verify faster, and fund with confidence.</h1>
+          <p className="mx-auto max-w-3xl text-slate-600 md:text-lg">
+            A unified workflow for contractors, engineers, buyers, and sponsors to monitor live progress, process worker uploads,
+            and make transparent construction decisions across Liberia.
           </p>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
-            <Button 
-              size="lg" 
-              className="gap-2"
-              onClick={() => navigate("/auth")}
-            >
-              Start Actually Learning
-              <ArrowRight className="h-4 w-4" />
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
+            <Button className="gap-2 bg-blue-700 hover:bg-blue-800">
+              Launch Portal <ArrowRight className="h-4 w-4" />
             </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              onClick={handleDashboardClick}
-            >
-              See How It Works
+            <Button variant="outline" className="border-green-600 text-green-700 hover:bg-green-50">
+              Schedule Demo
             </Button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* What is absractWity Section */}
-      <section className="py-16 px-4">
-        <div className="container mx-auto max-w-4xl">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-6 text-foreground">
-            What is absractWity?
-          </h2>
-          <div className="space-y-4 text-muted-foreground">
-            <p className="text-base md:text-lg">
-              <strong className="text-foreground">absractWity</strong> is an AI-powered learning platform designed to help students truly master their material—not just memorize it. Unlike traditional study apps or AI tools that simply provide answers, absractWity guides you along a clear path to deep understanding through active learning techniques.
-            </p>
-            <p className="text-base md:text-lg">
-              The "light path" in absractWity represents the illuminated journey from confusion to clarity. Just as light reveals what was hidden in darkness, our platform shines a light on concepts you're struggling with, making complex topics accessible and understandable.
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-6 mt-8">
-            <Card className="p-6">
-              <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                <Lightbulb className="h-5 w-5 text-yellow-500" />
-                Active Learning
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                absractWity uses proven active learning methods—retrieval practice, spaced repetition, and Socratic questioning—to ensure knowledge sticks.
-              </p>
-            </Card>
-            
-            <Card className="p-6">
-              <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                <Brain className="h-5 w-5 text-purple-500" />
-                Your Materials
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Upload your own notes, slides, or textbooks. absractWity creates personalized quizzes, flashcards, and study guides from YOUR content.
-              </p>
-            </Card>
-            
-            <Card className="p-6">
-              <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-blue-500" />
-                Proven Results
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Students using absractWity report better test scores, deeper understanding, and more confidence in their ability to learn difficult subjects.
-              </p>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* The Problem Section */}
-      <section className="py-16 px-4 bg-muted/50">
-        <div className="container mx-auto max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-              The AI shortcut is making you worse at learning
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              You copy-paste questions into ChatGPT, get perfect answers, and feel like you understand. But your brain never did the work. You need an AI tutor that teaches, not one that gives answers.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <Card className="p-6 border-2 border-destructive/20 bg-destructive/5">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-destructive/20 flex items-center justify-center shrink-0">
-                  <span className="text-xl">❌</span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white mb-1">Passive AI Use</h3>
-                  <p className="text-sm text-white font-medium">Get instant answers → Feel smart → Forget everything by test day</p>
+        <section className="grid gap-6 lg:grid-cols-3">
+          <Card className="rounded-2xl border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
+            <p className="mb-3 text-sm font-semibold text-slate-700">Desktop Monitor View</p>
+            <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-100 p-4 md:grid-cols-3">
+              <div className="md:col-span-2">
+                <p className="mb-2 text-sm font-medium text-slate-700">Site Worker POV (Meta Quest 3 View)</p>
+                <div className="relative aspect-video rounded-lg bg-gradient-to-br from-blue-700 via-blue-600 to-green-500 p-4 text-white">
+                  <div className="absolute right-3 top-3 rounded-full bg-black/30 px-2 py-1 text-xs">LIVE REVIEW</div>
+                  <div className="flex h-full items-center justify-center">
+                    <div className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-sm font-medium backdrop-blur">
+                      <Play className="h-4 w-4" /> Watch Construction Footage
+                    </div>
+                  </div>
                 </div>
               </div>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="text-destructive mt-0.5">•</span>
-                  <span className="text-white font-medium">Zero cognitive effort = zero retention</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-destructive mt-0.5">•</span>
-                  <span className="text-white font-medium">Answers you can't explain in your own words</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-destructive mt-0.5">•</span>
-                  <span className="text-white font-medium">Dependent on AI for every single problem</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-destructive mt-0.5">•</span>
-                  <span className="text-white font-medium">Panic when you face a test without ChatGPT</span>
-                </li>
-              </ul>
-            </Card>
 
-            <Card className="p-6 border-2 border-success/20 bg-success/5">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center shrink-0">
-                  <span className="text-xl">✓</span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white mb-1">Active Learning with Lightpath</h3>
-                  <p className="text-sm text-white font-medium">Struggle productively → Build understanding → Ace tests confidently</p>
-                </div>
-              </div>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="text-success mt-0.5">•</span>
-                  <span className="text-white font-medium">Forces retrieval practice = better memory</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-success mt-0.5">•</span>
-                  <span className="text-white font-medium">Guides you to think, not just copy answers</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-success mt-0.5">•</span>
-                  <span className="text-white font-medium">Makes you explain concepts = deeper understanding</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-success mt-0.5">•</span>
-                  <span className="text-white font-medium">Walk into exams knowing you actually learned it</span>
-                </li>
-              </ul>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Grid */}
-      <section className="py-16 px-4">
-        <div className="container mx-auto max-w-5xl">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-              How Lightpath makes you actually learn
-            </h2>
-            <p className="text-muted-foreground">
-              AI tools designed to force active thinking—not passive consumption. All from YOUR uploaded materials.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/tutor")}>
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
-                <Brain className="w-5 h-5 text-primary" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-1">AI Tutor</h3>
-              <p className="text-sm text-muted-foreground">
-                Asks YOU questions to check understanding. No spoon-feeding—you build the explanation.
-              </p>
-            </Card>
-
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/quizzes")}>
-              <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center mb-3">
-                <GraduationCap className="w-5 h-5 text-success" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-1">Practice Quizzes</h3>
-              <p className="text-sm text-muted-foreground">
-                Retrieval practice = stronger memory. Answer before seeing explanations.
-              </p>
-            </Card>
-
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/flashcards")}>
-              <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center mb-3">
-                <BookOpen className="w-5 h-5 text-info" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-1">Smart Flashcards</h3>
-              <p className="text-sm text-muted-foreground">
-                Spaced repetition keeps you reviewing. Forces you to recall, not just recognize.
-              </p>
-            </Card>
-
-            <Card className="p-5 hover:shadow-md transition-shadow bg-card border cursor-pointer" onClick={() => navigate("/features/memory")}>
-              <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center mb-3">
-                <Lightbulb className="w-5 h-5 text-warning" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-1">Memory Tricks</h3>
-              <p className="text-sm text-muted-foreground">
-                Elaborative encoding with mnemonics. Makes concepts sticky and memorable.
-              </p>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="py-16 px-4 bg-muted/30">
-        <div className="container mx-auto max-w-3xl">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-              From your notes to deep understanding
-            </h2>
-            <p className="text-muted-foreground">
-              Three step-by-step stages to stop cramming and start mastering
-            </p>
-          </div>
-
-          <div className="space-y-8">
-            <div className="flex gap-4 items-start">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold shrink-0">
-                1
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-1">Upload Your Materials</h3>
-                <p className="text-muted-foreground">
-                  Lecture slides, textbook chapters, class notes—Lightpath analyzes YOUR content, not generic Wikipedia summaries.
+              <div className="rounded-lg border border-blue-100 bg-white p-3">
+                <p className="text-sm font-semibold text-blue-700">AI Progress Dashboard</p>
+                <p className="mt-2 text-xs text-slate-600">
+                  Automated summary: 92% construction accuracy. Rebar spacing and plaster alignment meet approved standards.
                 </p>
+                <div className="mt-3 space-y-2 text-xs">
+                  {timelineMilestones.map((item) => (
+                    <div key={item.phase} className="flex items-center justify-between rounded border border-slate-200 px-2 py-1">
+                      <span className="font-medium">{item.phase}</span>
+                      <span className="text-slate-500">{item.status} • {item.date}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
+          </Card>
 
-            <div className="flex gap-4 items-start">
-              <div className="w-10 h-10 rounded-full bg-success flex items-center justify-center text-success-foreground font-bold shrink-0">
-                2
+          <Card className="rounded-2xl border-green-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-slate-700">Mobile View</p>
+            <div className="mt-3 rounded-2xl border-4 border-slate-900 bg-slate-100 p-3">
+              <p className="text-xs font-semibold text-blue-700">On-Site Status</p>
+              <p className="mt-2 text-sm font-medium">Blockwork Completed</p>
+              <p className="text-xs text-slate-500">AI verified 14:20 GMT</p>
+              <div className="mt-3 rounded-lg bg-white p-2 text-xs">
+                <p className="font-medium">Next Action</p>
+                <p className="text-slate-600">Upload roof beam inspection clip</p>
               </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-1">Engage Actively</h3>
-                <p className="text-muted-foreground">
-                  Quiz yourself, chat with the tutor, make flashcards. Every tool forces you to retrieve and apply knowledge.
-                </p>
+              <Button size="sm" className="mt-3 w-full gap-2 bg-green-600 hover:bg-green-700">
+                <Upload className="h-3.5 w-3.5" /> Upload Proof
+              </Button>
+            </div>
+          </Card>
+        </section>
+
+        <section className="grid gap-6 md:grid-cols-2">
+          <Card className="rounded-2xl border-slate-200 bg-white p-5 shadow-sm">
+            <p className="mb-3 text-sm font-semibold text-slate-700">Tablet Inset View</p>
+            <p className="text-sm font-medium text-blue-700">Worker Upload + AI Video Processing</p>
+            <div className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between rounded border border-slate-200 px-3 py-2">
+                <span>Upload</span>
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              </div>
+              <div className="flex items-center justify-between rounded border border-blue-200 bg-blue-50 px-3 py-2">
+                <span>AI Video Processing</span>
+                <Clock3 className="h-4 w-4 text-blue-700" />
+              </div>
+              <div className="h-2 rounded bg-slate-200">
+                <div className="h-full w-3/4 rounded bg-blue-600" />
+              </div>
+              <p className="text-xs text-slate-500">Frame analysis, material recognition, and timeline tagging in progress.</p>
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl border-blue-200 bg-blue-50/60 p-5 shadow-sm">
+            <p className="text-sm font-semibold text-blue-800">Dedicated Professional Banner Ad Spaces</p>
+            <div className="mt-3 space-y-3">
+              <div className="rounded-lg border border-blue-200 bg-white p-3">
+                <p className="text-sm font-semibold">Sponsor: Liberia Commerce Bank</p>
+                <p className="text-xs text-slate-600">Construction loans with milestone-based disbursement for verified projects.</p>
+              </div>
+              <div className="rounded-lg border border-green-200 bg-white p-3">
+                <p className="text-sm font-semibold">Sponsor: Monrovia Hardware Supply</p>
+                <p className="text-xs text-slate-600">Bulk cement, steel, and roofing inventory for BuildLiberia Connect projects.</p>
               </div>
             </div>
+          </Card>
+        </section>
 
-            <div className="flex gap-4 items-start">
-              <div className="w-10 h-10 rounded-full bg-info flex items-center justify-center text-info-foreground font-bold shrink-0">
-                3
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-1">Build Real Understanding</h3>
-                <p className="text-muted-foreground">
-                  Not just memorization—you'll explain concepts in your own words and apply them to new problems.
-                </p>
-              </div>
-            </div>
+        <section className="space-y-5">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-bold">Choose Your Purchasing Model</h2>
+            <ShieldCheck className="h-6 w-6 text-green-600" />
           </div>
-        </div>
-      </section>
-
-      {/* Why Lightpath Works */}
-      <section className="py-16 px-4">
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-              Why this actually works (backed by science)
-            </h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            {purchasingModels.map((model) => (
+              <Card key={model.title} className="rounded-2xl border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="text-base font-semibold text-slate-900">{model.title}</h3>
+                <p className="mt-2 text-sm text-slate-600">{model.description}</p>
+                <Button variant="outline" className="mt-4 w-full border-blue-200 text-blue-700 hover:bg-blue-50">
+                  {model.cta}
+                </Button>
+              </Card>
+            ))}
           </div>
+        </section>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="p-6 bg-card border">
-              <div className="text-3xl mb-3">🧠</div>
-              <h3 className="font-semibold text-foreground mb-2">Retrieval Practice</h3>
-              <p className="text-sm text-muted-foreground">
-                The act of recalling information makes it stick better than re-reading. Quizzing yourself = stronger memory.
-              </p>
-            </Card>
-
-            <Card className="p-6 bg-card border">
-              <div className="text-3xl mb-3">🔄</div>
-              <h3 className="font-semibold text-foreground mb-2">Spaced Repetition</h3>
-              <p className="text-sm text-muted-foreground">
-                Reviewing material at increasing intervals prevents forgetting. Flashcards aren't just review—they're memory training.
-              </p>
-            </Card>
-
-            <Card className="p-6 bg-card border">
-              <div className="text-3xl mb-3">💡</div>
-              <h3 className="font-semibold text-foreground mb-2">Elaborative Encoding</h3>
-              <p className="text-sm text-muted-foreground">
-                Connecting new info to what you know makes it memorable. That's why mnemonics and explanations work.
-              </p>
-            </Card>
-          </div>
-
-          <div className="mt-10 p-6 bg-primary/5 border-l-4 border-primary rounded-lg">
-            <p className="text-foreground font-medium mb-2">
-              💬 "I used to copy ChatGPT answers and feel smart. Then I'd bomb tests. Lightpath forced me to actually think through problems—my grades went from C's to A's."
+        <section className="grid gap-4 md:grid-cols-2">
+          <Card className="rounded-2xl border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold text-slate-900">Find a Licensed Engineer</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Search verified civil and structural professionals by county, specialty, and availability.
             </p>
-            <p className="text-sm text-muted-foreground">— College sophomore using Lightpath for Organic Chemistry</p>
-          </div>
-        </div>
-      </section>
+            <Button className="mt-4 bg-blue-700 hover:bg-blue-800">Browse Engineer Directory</Button>
+          </Card>
 
-      {/* Pricing Section */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto max-w-7xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Simple, Student-Friendly Pricing
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Start free. Upgrade when you're ready to unlock unlimited learning.
+          <Card className="rounded-2xl border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-semibold text-slate-900">Construction Material Marketplace</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Compare pricing, quality certifications, and logistics options from trusted Liberian suppliers.
             </p>
-          </div>
-          <PricingPlans />
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-16 px-4 bg-muted/50">
-        <div className="container mx-auto max-w-2xl text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-            Stop wasting time. Start your learning journey.
-          </h2>
-          <p className="text-muted-foreground mb-6">
-            Join students who actually understand their material—not just copy answers. No credit card required.
-          </p>
-          <Button 
-            size="lg"
-            className="gap-2"
-            onClick={() => navigate("/auth")}
-          >
-            <Upload className="w-4 h-4" />
-            Start Learning for Free
-          </Button>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section className="py-16 px-4">
-        <div className="container mx-auto max-w-3xl">
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-8 text-center">
-            Frequently Asked Questions
-          </h2>
-          <div className="space-y-6">
-            <div className="border-b pb-4">
-              <h3 className="font-semibold text-foreground mb-2">What subjects does Lightpath help with?</h3>
-              <p className="text-muted-foreground text-sm">
-                Lightpath works for any subject—math, science, history, languages, and more. Upload your notes and our AI tutor adapts to your material.
-              </p>
-            </div>
-            <div className="border-b pb-4">
-              <h3 className="font-semibold text-foreground mb-2">How is this different from ChatGPT?</h3>
-              <p className="text-muted-foreground text-sm">
-                ChatGPT gives you answers. Lightpath helps you find the answer yourself through guided questions and active recall—the AI-powered approach proven to improve retention.
-              </p>
-            </div>
-            <div className="border-b pb-4">
-              <h3 className="font-semibold text-foreground mb-2">Does it adapt to my learning style?</h3>
-              <p className="text-muted-foreground text-sm">
-                Yes. Whether you learn best through quizzes, flashcards, or conversation, Lightpath offers multiple study modes to match your learning style.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground mb-2">Is it free to try?</h3>
-              <p className="text-muted-foreground text-sm">
-                Absolutely. Start with our free tier—no credit card required. Upgrade when you're ready for unlimited access.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-12 px-4">
-        <div className="container mx-auto max-w-3xl space-y-3 text-center">
-          <h3 className="text-xl font-semibold">AI is a tool, not a crutch</h3>
-          <p className="text-muted-foreground text-sm">
-            We built Lightpath because students deserve AI that helps them learn—not AI that does the learning for them. Use technology wisely. Build real understanding. Keep your own judgment.
-          </p>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-6 px-4 border-t bg-card">
-        <div className="container mx-auto text-center text-sm text-muted-foreground">
-          <p>© 2024 absractWity. Learn deeply, think critically, remember permanently.</p>
-        </div>
-      </footer>
+            <Button className="mt-4 bg-green-600 hover:bg-green-700">Open Material Marketplace</Button>
+          </Card>
+        </section>
+      </main>
     </div>
   );
 };
